@@ -43,7 +43,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     } catch (error) {
       const msg = error instanceof Error ? error.message : '';
       if (msg === 'EMAIL_NOT_VERIFIED') {
-        return reply.code(403).send({ statusCode: 403, message: 'EMAIL_NOT_VERIFIED' });
+        return reply.code(403).send({ statusCode: 403, code: 'EMAIL_NOT_VERIFIED', message: 'Confirme seu email antes de fazer login.' });
       }
       if (msg === 'Credenciais inválidas') {
         return reply.code(401).send({ statusCode: 401, message: 'Credenciais inválidas' });

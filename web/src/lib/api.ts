@@ -86,8 +86,10 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as { message?: string }).message ?? 'Erro na requisição');
+    const body = await res.json().catch(() => ({})) as { message?: string; code?: string };
+    const err = new Error(body.message ?? 'Erro na requisição') as Error & { code?: string };
+    if (body.code) err.code = body.code;
+    throw err;
   }
 
   const text = await res.text();

@@ -89,11 +89,11 @@ export function AuthScreen() {
       setSession(result.user, result.accessToken, result.refreshToken);
       navigate('/');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Erro inesperado';
-      if (msg === 'EMAIL_NOT_VERIFIED') {
+      const e = err as Error & { code?: string };
+      if (e.code === 'EMAIL_NOT_VERIFIED') {
         setEmailNotVerified(true);
       } else {
-        setError(msg);
+        setError(e.message || 'Erro inesperado');
       }
     } finally {
       setLoading(false);
