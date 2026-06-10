@@ -1,0 +1,11 @@
+{
+  "name": "rotina-workspace",
+  "private": true,
+  "scripts": {
+    "dev:api": "npm --prefix api run dev",
+    "dev:web": "npm --prefix web run dev"
+  },
+  "dependencies": {
+    "zod": "^3.24.0"
+  }
+}
