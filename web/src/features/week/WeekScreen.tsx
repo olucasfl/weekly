@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Check, Leaf, CheckCheck, RotateCcw, List, LayoutGrid, CalendarDays, ArrowRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Leaf, CheckCheck, RotateCcw, List, LayoutGrid, CalendarDays, ArrowRight, Trash2, Plus } from 'lucide-react';
 import { api } from '../../lib/api';
-import { localISO, mondayOf, addDays } from '../../lib/date';
+import { localISO, weekStartOf, addDays } from '../../lib/date';
 import { BottomNav } from '../../components/BottomNav';
 import { LogoFull } from '../../components/Logo';
 import { TaskRowSkeleton } from '../../components/Skeleton';
@@ -24,9 +24,20 @@ type Occurrence = {
   isMultiDay?: boolean;
   multiDayPos?: 'start' | 'middle' | 'end' | null;
   endDate?: string | null;
+  notes?: string | null;
 };
 
-type Category = { id: string; name: string; color: string };
+type RecurringTask = {
+  id: string;
+  title: string;
+  startTime: string;
+  endTime?: string | null;
+  notes?: string | null;
+  reminder: boolean;
+  reminderMin: number;
+  categoryId?: string | null;
+  category?: { id: string; name: string; color: string } | null;
+};
 
 function fmtShort(iso: string) {
   const d = new Date(iso + 'T12:00:00');
@@ -41,11 +52,12 @@ type ViewMode = 'list' | 'grid' | 'month';
 
 export function WeekScreen() {
   const today = new Date();
-  const [weekStart, setWeekStart]       = useState(() => mondayOf(today));
+  const [weekStart, setWeekStart]       = useState(() => weekStartOf(today));
   const [selectedDate, setSelectedDate] = useState(() => localISO(today));
   const [viewMode, setViewMode]         = useState<ViewMode>(() => (localStorage.getItem('weekViewMode') as ViewMode) ?? 'list');
-  const [filterCatId, setFilterCatId]   = useState<string | null>(null);
   const [toastError, setToastError]     = useState<string | null>(null);
+  const [confirmSkip, setConfirmSkip]   = useState<string | null>(null); // taskId being confirmed
+  const [showAddExisting, setShowAddExisting] = useState(false);
 
   useEffect(() => { localStorage.setItem('weekViewMode', viewMode); }, [viewMode]);
 
@@ -58,9 +70,10 @@ export function WeekScreen() {
     queryFn: () => api(`/week?start=${weekStartISO}`),
   });
 
-  const { data: categories = [] } = useQuery<Category[]>({
-    queryKey: ['categories'],
-    queryFn: () => api('/categories'),
+  const { data: allTasks = [] } = useQuery<RecurringTask[]>({
+    queryKey: ['tasks', 'recurring'],
+    queryFn: () => api('/tasks?type=recurring'),
+    enabled: showAddExisting,
   });
 
   const { data: note } = useQuery<{ date: string; content: string }>({
@@ -127,6 +140,49 @@ export function WeekScreen() {
     onSettled: () => qc.invalidateQueries({ queryKey: ['week', weekStartISO] }),
   });
 
+  const skipMutation = useMutation({
+    mutationFn: ({ taskId, date }: { taskId: string; date: string }) =>
+      api('/completions', { method: 'PATCH', body: JSON.stringify({ taskId, date, skipped: true }) }),
+    onMutate: async ({ taskId, date }) => {
+      await qc.cancelQueries({ queryKey: ['week', weekStartISO] });
+      const prev = qc.getQueryData<Occurrence[]>(['week', weekStartISO]);
+      qc.setQueryData<Occurrence[]>(['week', weekStartISO], (old) =>
+        old?.filter((o) => !(o.taskId === taskId && o.date === date)) ?? []
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['week', weekStartISO], ctx.prev);
+      showError('Erro ao remover. Tente novamente.');
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['week', weekStartISO] }),
+  });
+
+  const addExistingMutation = useMutation({
+    mutationFn: (task: RecurringTask) =>
+      api('/tasks', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: task.title,
+          type: 'SCHEDULED',
+          weekdays: [],
+          date: selectedDate,
+          startTime: task.startTime,
+          endTime: task.endTime ?? undefined,
+          notes: task.notes ?? undefined,
+          reminder: task.reminder,
+          reminderMin: task.reminderMin,
+          categoryId: task.categoryId ?? undefined,
+          active: true,
+        }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['week', weekStartISO] });
+      setShowAddExisting(false);
+    },
+    onError: (e) => showError(e instanceof Error ? e.message : 'Erro ao adicionar'),
+  });
+
   function onToggle(taskId: string, date: string, done: boolean) {
     if ('vibrate' in navigator) navigator.vibrate(30);
     toggleMutation.mutate({ taskId, date, done });
@@ -134,19 +190,21 @@ export function WeekScreen() {
 
   const dayOccurrences = occurrences
     .filter((o) => o.date === selectedDate)
-    .filter((o) => !filterCatId || o.category?.id === filterCatId)
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
+  const dayTaskIds = new Set(dayOccurrences.map((o) => o.taskId));
+  const tasksNotOnThisDay = allTasks.filter((t) => !dayTaskIds.has(t.id));
+
   const doneCount = dayOccurrences.filter((o) => o.done).length;
-  const isCurrentWeek = localISO(weekStart) === localISO(mondayOf(today));
+  const isCurrentWeek = localISO(weekStart) === localISO(weekStartOf(today));
 
   function prevWeek() { const p = addDays(weekStart, -7); setWeekStart(p); setSelectedDate(localISO(p)); }
   function nextWeek() { const n = addDays(weekStart,  7); setWeekStart(n); setSelectedDate(localISO(n)); }
-  function goToday()  { setWeekStart(mondayOf(today)); setSelectedDate(localISO(today)); }
+  function goToday()  { setWeekStart(weekStartOf(today)); setSelectedDate(localISO(today)); }
 
   function handleMonthSelectDay(iso: string) {
     const d = new Date(iso + 'T12:00:00');
-    setWeekStart(mondayOf(d));
+    setWeekStart(weekStartOf(d));
     setSelectedDate(iso);
     setViewMode('list');
   }
@@ -164,7 +222,6 @@ export function WeekScreen() {
             <div className="screen-subtitle" style={{ marginTop: 2 }}>{weekLabel}</div>
           </div>
           <div className="row" style={{ gap: 4 }}>
-            {/* View mode toggle */}
             <div className="view-mode-tabs">
               {([['list', List], ['grid', LayoutGrid], ['month', CalendarDays]] as const).map(([mode, Icon]) => (
                 <button
@@ -205,39 +262,16 @@ export function WeekScreen() {
                 >
                   <span className="day-name">{DAY_NAMES[d.getDay()]}</span>
                   <span className="day-num">{d.getDate()}</span>
-                  <div style={{ width: 4, height: 4, borderRadius: '50%', background: isSelected ? 'white' : 'var(--brand)', visibility: hasTasks && !isSelected ? 'visible' : 'hidden' }} />
+                  {isToday
+                    ? <div className="today-dot" />
+                    : <div style={{ width: 4, height: 4, borderRadius: '50%', background: isSelected ? 'white' : 'var(--brand)', visibility: hasTasks && !isSelected ? 'visible' : 'hidden' }} />
+                  }
                 </button>
               );
             })}
           </div>
         )}
       </div>
-
-      {/* ─── Category filter (list + grid modes) ────────────────── */}
-      {viewMode !== 'month' && categories.length > 0 && (
-        <div style={{ padding: '10px 16px 0' }}>
-          <div className="cat-chips-row">
-            <button
-              className={`cat-chip${!filterCatId ? ' active-filter' : ''}`}
-              onClick={() => setFilterCatId(null)}
-              style={!filterCatId ? { borderColor: 'var(--brand)', background: 'var(--brand-light)', color: 'var(--brand)' } : {}}
-            >
-              Todos
-            </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                className="cat-chip"
-                style={filterCatId === cat.id ? { borderColor: cat.color, background: `${cat.color}18`, color: cat.color } : {}}
-                onClick={() => setFilterCatId(filterCatId === cat.id ? null : cat.id)}
-              >
-                <div className="cat-dot" style={{ background: cat.color }} />
-                {cat.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* ─── Main content ────────────────────────────────────────── */}
       {viewMode === 'grid' && (
@@ -246,7 +280,7 @@ export function WeekScreen() {
             occurrences={occurrences}
             weekDays={weekDays}
             today={today}
-            filterCatId={filterCatId}
+            filterCatId={null}
             onToggle={onToggle}
           />
         </div>
@@ -254,7 +288,7 @@ export function WeekScreen() {
 
       {viewMode === 'month' && (
         <div className="screen-body">
-          <MonthView today={today} filterCatId={filterCatId} onSelectDay={handleMonthSelectDay} />
+          <MonthView today={today} filterCatId={null} onSelectDay={handleMonthSelectDay} />
         </div>
       )}
 
@@ -301,6 +335,8 @@ export function WeekScreen() {
 
           {dayOccurrences.map((item) => {
             const color = item.category?.color ?? (item.type === 'SCHEDULED' ? EVENT_COLOR : undefined);
+            const isConfirming = confirmSkip === item.taskId + item.date;
+
             if (item.isMultiDay) {
               const isStart = item.multiDayPos === 'start';
               const isEnd = item.multiDayPos === 'end';
@@ -308,71 +344,117 @@ export function WeekScreen() {
                 ? `${fmtShort(item.date)} ${item.startTime} → ${fmtShort(item.endDate)} ${item.endTime ?? ''}`.trim()
                 : item.startTime;
               return (
-                <div
-                  key={`${item.taskId}-${item.date}`}
-                  className={`task-row multiday-row${item.done ? ' done' : ''}`}
-                  style={{ borderLeft: `3px solid ${color ?? EVENT_COLOR}` }}
-                  onClick={() => onToggle(item.taskId, item.date, !item.done)}
-                >
-                  <div className="task-cat-bar" style={{ background: color ?? EVENT_COLOR, opacity: 0.7 }} />
-                  <div className={`task-check${item.done ? ' checked' : ''}`}>
-                    <Check size={11} strokeWidth={3} color="white" />
-                  </div>
-                  <div className="task-info">
-                    <div className={`task-name${item.done ? ' done' : ''}`}>{item.title}</div>
-                    <div className="task-meta" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      {isStart ? dateLabel : isEnd ? `→ até ${fmtShort(item.endDate!)} ${item.endTime ?? ''}`.trim() : '· continua'}
-                      <span style={{ color: color ?? EVENT_COLOR, fontWeight: 600, marginLeft: 4 }}>
-                        · {isStart ? 'início' : isEnd ? 'fim' : 'continua'}
-                      </span>
+                <div key={`${item.taskId}-${item.date}`}>
+                  {isConfirming ? (
+                    <div className="task-row" style={{ gap: 8 }}>
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flex: 1 }}>Remover deste dia?</span>
+                      <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setConfirmSkip(null)}>Não</button>
+                      <button className="btn btn-danger" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => { skipMutation.mutate({ taskId: item.taskId, date: item.date }); setConfirmSkip(null); }}>Sim</button>
                     </div>
-                  </div>
-                  <ArrowRight size={13} strokeWidth={2} color={color ?? EVENT_COLOR} style={{ opacity: 0.7, flexShrink: 0 }} />
+                  ) : (
+                    <div
+                      className={`task-row multiday-row${item.done ? ' done' : ''}`}
+                      style={{ borderLeft: `3px solid ${color ?? EVENT_COLOR}` }}
+                      onClick={() => onToggle(item.taskId, item.date, !item.done)}
+                    >
+                      <div className="task-cat-bar" style={{ background: color ?? EVENT_COLOR, opacity: 0.7 }} />
+                      <div className={`task-check${item.done ? ' checked' : ''}`}>
+                        <Check size={11} strokeWidth={3} color="white" />
+                      </div>
+                      <div className="task-info">
+                        <div className={`task-name${item.done ? ' done' : ''}`}>{item.title}</div>
+                        <div className="task-meta" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {isStart ? dateLabel : isEnd ? `→ até ${fmtShort(item.endDate!)} ${item.endTime ?? ''}`.trim() : '· continua'}
+                          <span style={{ color: color ?? EVENT_COLOR, fontWeight: 600, marginLeft: 4 }}>
+                            · {isStart ? 'início' : isEnd ? 'fim' : 'continua'}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        className="btn-skip"
+                        onClick={(e) => { e.stopPropagation(); setConfirmSkip(item.taskId + item.date); }}
+                        title="Remover deste dia"
+                      >
+                        <Trash2 size={13} strokeWidth={1.8} />
+                      </button>
+                      <ArrowRight size={13} strokeWidth={2} color={color ?? EVENT_COLOR} style={{ opacity: 0.7, flexShrink: 0 }} />
+                    </div>
+                  )}
                 </div>
               );
             }
+
             return (
-              <div
-                key={`${item.taskId}-${item.date}`}
-                className={`task-row${item.done ? ' done' : ''}`}
-                onClick={() => onToggle(item.taskId, item.date, !item.done)}
-              >
-                {(item.category || item.type === 'SCHEDULED') && (
-                  <div className="task-cat-bar" style={{ background: color }} />
-                )}
-                <div className={`task-check${item.done ? ' checked' : ''}`}>
-                  <Check size={11} strokeWidth={3} color="white" />
-                </div>
-                <div className="task-info">
-                  <div className={`task-name${item.done ? ' done' : ''}`}>{item.title}</div>
-                  <div className="task-meta">
-                    {item.startTime}{item.endTime ? ` – ${item.endTime}` : ''}
-                    {item.category ? (
-                      <span style={{ color: item.category.color, fontWeight: 600, marginLeft: 5 }}>· {item.category.name}</span>
-                    ) : item.type === 'SCHEDULED' ? (
-                      <span style={{ color: EVENT_COLOR, fontWeight: 600, marginLeft: 5 }}>· Evento</span>
-                    ) : null}
+              <div key={`${item.taskId}-${item.date}`}>
+                {isConfirming ? (
+                  <div className="task-row" style={{ gap: 8 }}>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flex: 1 }}>Remover deste dia?</span>
+                    <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setConfirmSkip(null)}>Não</button>
+                    <button className="btn btn-danger" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => { skipMutation.mutate({ taskId: item.taskId, date: item.date }); setConfirmSkip(null); }}>Sim</button>
                   </div>
-                </div>
+                ) : (
+                  <div
+                    className={`task-row${item.done ? ' done' : ''}`}
+                    onClick={() => onToggle(item.taskId, item.date, !item.done)}
+                  >
+                    {(item.category || item.type === 'SCHEDULED') && (
+                      <div className="task-cat-bar" style={{ background: color }} />
+                    )}
+                    <div className={`task-check${item.done ? ' checked' : ''}`}>
+                      <Check size={11} strokeWidth={3} color="white" />
+                    </div>
+                    <div className="task-info">
+                      <div className={`task-name${item.done ? ' done' : ''}`}>{item.title}</div>
+                      <div className="task-meta">
+                        {item.startTime}{item.endTime ? ` – ${item.endTime}` : ''}
+                        {item.category ? (
+                          <span style={{ color: item.category.color, fontWeight: 600, marginLeft: 5 }}>· {item.category.name}</span>
+                        ) : item.type === 'SCHEDULED' ? (
+                          <span style={{ color: EVENT_COLOR, fontWeight: 600, marginLeft: 5 }}>· Evento</span>
+                        ) : null}
+                      </div>
+                      {item.notes && <div className="task-notes">{item.notes}</div>}
+                    </div>
+                    <button
+                      className="btn-skip"
+                      onClick={(e) => { e.stopPropagation(); setConfirmSkip(item.taskId + item.date); }}
+                      title="Remover deste dia"
+                    >
+                      <Trash2 size={13} strokeWidth={1.8} />
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
+
+          {/* Add existing task button */}
+          {!isLoading && (
+            <button
+              className="btn btn-ghost"
+              style={{ width: '100%', gap: 8, fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}
+              onClick={() => setShowAddExisting(true)}
+            >
+              <Plus size={14} strokeWidth={2} />
+              Adicionar afazer existente a este dia
+            </button>
+          )}
 
           {dayOccurrences.length > 0 && (
             <div className="card-ghost" style={{ marginTop: 4 }}>
               <div className="row-between" style={{ marginBottom: 6 }}>
                 <span className="text-xs text-muted">Progresso do dia</span>
                 <span className="text-xs font-semibold text-brand">
-                  {dayOccurrences.length > 0 ? Math.round((doneCount / dayOccurrences.length) * 100) : 0}%
+                  {Math.round((doneCount / dayOccurrences.length) * 100)}%
                 </span>
               </div>
               <div className="progress-bar-track">
-                <div className="progress-bar-fill" style={{ width: `${dayOccurrences.length > 0 ? (doneCount / dayOccurrences.length) * 100 : 0}%` }} />
+                <div className="progress-bar-fill" style={{ width: `${(doneCount / dayOccurrences.length) * 100}%` }} />
               </div>
             </div>
           )}
 
-          {/* ─── Notas do dia ───────────────────────────────────── */}
+          {/* Notas do dia */}
           <div style={{ marginTop: 4 }}>
             <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
               Notas
@@ -383,6 +465,46 @@ export function WeekScreen() {
               value={noteText}
               onChange={(e) => handleNoteChange(e.target.value)}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Add Existing Modal */}
+      {showAddExisting && (
+        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowAddExisting(false)}>
+          <div className="modal">
+            <div className="modal-handle" />
+            <div className="modal-header">
+              <span className="modal-title">Adicionar a {DAY_NAMES_FULL[new Date(selectedDate + 'T12:00:00').getDay()]}</span>
+              <button className="modal-close" onClick={() => setShowAddExisting(false)}>✕</button>
+            </div>
+            {tasksNotOnThisDay.length === 0 ? (
+              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
+                Todos os seus afazeres já aparecem neste dia.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
+                {tasksNotOnThisDay.map((task) => (
+                  <button
+                    key={task.id}
+                    className="task-row"
+                    style={{ textAlign: 'left', background: 'none', border: '1.5px solid var(--border)', borderRadius: 'var(--r-md)', cursor: 'pointer' }}
+                    onClick={() => addExistingMutation.mutate(task)}
+                    disabled={addExistingMutation.isPending}
+                  >
+                    {task.category && <div className="task-cat-bar" style={{ background: task.category.color }} />}
+                    <div className="task-info">
+                      <div className="task-name">{task.title}</div>
+                      <div className="task-meta">
+                        {task.startTime}{task.endTime ? ` – ${task.endTime}` : ''}
+                        {task.category && <span style={{ color: task.category.color, fontWeight: 600, marginLeft: 5 }}>· {task.category.name}</span>}
+                      </div>
+                    </div>
+                    <Plus size={14} color="var(--brand)" style={{ flexShrink: 0 }} />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -30,6 +30,7 @@ export async function getWeekOccurrences(userId: string, tasks: TaskLike[], week
         isMultiDay: item.isMultiDay ?? false,
         multiDayPos: item.multiDayPos ?? null,
         endDate: item.task.endDate ?? null,
+        notes: item.task.notes ?? null,
       };
     });
 }

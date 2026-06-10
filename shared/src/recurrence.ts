@@ -17,6 +17,8 @@ export type TaskLike = {
   monthlyDay?: number | null;
   monthlyWeekday?: number | null;
   monthlyWeek?: number | null;
+  deletedAt?: string | null;
+  notes?: string | null;
 };
 
 export type OccurrenceItem = {
@@ -33,6 +35,11 @@ function mondayOfDate(dateStr: string): Date {
   return d;
 }
 
+function notDeleted(deletedDate: string | null, occurrenceDate: string): boolean {
+  if (!deletedDate) return true;
+  return occurrenceDate <= deletedDate;
+}
+
 export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): OccurrenceItem[] {
   const start = new Date(weekStart + 'T00:00:00');
   const end = new Date(start);
@@ -41,6 +48,7 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
   const occurrences: OccurrenceItem[] = [];
 
   for (const task of tasks.filter((t) => t.active !== false)) {
+    const deletedDate = task.deletedAt ?? null;
     if (task.type === 'SCHEDULED' && task.date) {
       if (task.endDate) {
         // Multi-day event: one occurrence per day in the span that falls within the week
@@ -53,12 +61,13 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
             if (dateStr === task.date) multiDayPos = 'start';
             else if (dateStr === task.endDate) multiDayPos = 'end';
             else multiDayPos = 'middle';
-            occurrences.push({ task, date: dateStr, isMultiDay: true, multiDayPos });
+            if (notDeleted(deletedDate, dateStr))
+              occurrences.push({ task, date: dateStr, isMultiDay: true, multiDayPos });
           }
         }
       } else {
         const d = new Date(task.date + 'T00:00:00');
-        if (d >= start && d <= end) {
+        if (d >= start && d <= end && notDeleted(deletedDate, task.date)) {
           occurrences.push({ task, date: task.date });
         }
       }
@@ -74,8 +83,9 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
         const current = new Date(start);
         const dayOffset = (weekday - start.getDay() + 7) % 7;
         current.setDate(start.getDate() + dayOffset);
-        if (current >= start && current <= end) {
-          occurrences.push({ task, date: current.toISOString().slice(0, 10) });
+        const dateStr = current.toISOString().slice(0, 10);
+        if (current >= start && current <= end && notDeleted(deletedDate, dateStr)) {
+          occurrences.push({ task, date: dateStr });
         }
       }
     } else if (rtype === 'biweekly' && task.biweeklyAnchor) {
@@ -89,8 +99,9 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
           const current = new Date(start);
           const dayOffset = (weekday - start.getDay() + 7) % 7;
           current.setDate(start.getDate() + dayOffset);
-          if (current >= start && current <= end) {
-            occurrences.push({ task, date: current.toISOString().slice(0, 10) });
+          const dateStr = current.toISOString().slice(0, 10);
+          if (current >= start && current <= end && notDeleted(deletedDate, dateStr)) {
+            occurrences.push({ task, date: dateStr });
           }
         }
       }
@@ -98,8 +109,9 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
       for (let i = 0; i < 7; i++) {
         const d = new Date(start);
         d.setDate(start.getDate() + i);
-        if (d.getDate() === task.monthlyDay) {
-          occurrences.push({ task, date: d.toISOString().slice(0, 10) });
+        const dateStr = d.toISOString().slice(0, 10);
+        if (d.getDate() === task.monthlyDay && notDeleted(deletedDate, dateStr)) {
+          occurrences.push({ task, date: dateStr });
           break;
         }
       }
@@ -116,7 +128,8 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
           } else {
             matches = Math.ceil(d.getDate() / 7) === task.monthlyWeek;
           }
-          if (matches) occurrences.push({ task, date: d.toISOString().slice(0, 10) });
+          const dateStr = d.toISOString().slice(0, 10);
+          if (matches && notDeleted(deletedDate, dateStr)) occurrences.push({ task, date: dateStr });
           break;
         }
       }

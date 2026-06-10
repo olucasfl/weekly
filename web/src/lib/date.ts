@@ -12,6 +12,19 @@ export function mondayOf(d: Date = new Date()): Date {
   return mon;
 }
 
+/** Domingo da semana que contém `d` (semana começa no domingo). */
+export function sundayOf(d: Date = new Date()): Date {
+  const day = d.getDay(); // 0=dom
+  const sun = new Date(d);
+  sun.setDate(d.getDate() - day);
+  return sun;
+}
+
+/** Início da semana respeitando a preferência salva no localStorage. */
+export function weekStartOf(d: Date = new Date()): Date {
+  return localStorage.getItem('weekStartsSunday') === '1' ? sundayOf(d) : mondayOf(d);
+}
+
 /** Adiciona `n` dias a uma data (retorna nova instância). */
 export function addDays(d: Date, n: number): Date {
   const r = new Date(d);

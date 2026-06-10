@@ -1,7 +1,7 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { Flame, TrendingUp, Clock, Target } from 'lucide-react';
 import { api } from '../../lib/api';
-import { localISO, mondayOf, addDays } from '../../lib/date';
+import { localISO, weekStartOf, addDays } from '../../lib/date';
 import { BottomNav } from '../../components/BottomNav';
 import { StatBoxSkeleton } from '../../components/Skeleton';
 
@@ -17,11 +17,11 @@ type Dashboard = {
 
 const MONTH_ABBR = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
 
-function getMondayISO() { return localISO(mondayOf()); }
+function getWeekStartISO() { return localISO(weekStartOf()); }
 
-function getPastMondays(n: number): string[] {
+function getPastWeekStarts(n: number): string[] {
   const result: string[] = [];
-  let cur = mondayOf();
+  let cur = weekStartOf();
   for (let i = 0; i < n; i++) {
     result.unshift(localISO(cur));
     cur = addDays(cur, -7);
@@ -35,7 +35,7 @@ function weekLabel(iso: string) {
 }
 
 export function ProgressScreen() {
-  const weekStart = getMondayISO();
+  const weekStart = getWeekStartISO();
 
   const { data: dashboard, isLoading } = useQuery<Dashboard>({
     queryKey: ['dashboard', weekStart],
@@ -43,9 +43,9 @@ export function ProgressScreen() {
   });
 
   // Last 8 weeks for history
-  const pastMondays = getPastMondays(8);
+  const pastWeekStarts = getPastWeekStarts(8);
   const historyQueries = useQueries({
-    queries: pastMondays.map((ws) => ({
+    queries: pastWeekStarts.map((ws) => ({
       queryKey: ['dashboard', ws],
       queryFn: () => api<Dashboard>(`/dashboard?start=${ws}`),
       staleTime: 5 * 60_000,
@@ -85,7 +85,7 @@ export function ProgressScreen() {
               <span className="text-xs text-muted">Sequência</span>
             </div>
             <div className="stat-val">{dashboard?.streak ?? 0}</div>
-            <div className="stat-label">semanas seguidas</div>
+            <div className="stat-label">dias seguidos</div>
           </div>}
           {!isLoading && <div className="stat-box">
             <div className="row" style={{ gap: 6, marginBottom: 6 }}>
@@ -122,7 +122,7 @@ export function ProgressScreen() {
           <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: 16 }}>Histórico — 8 semanas</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {historyQueries.map((q, i) => {
-              const ws = pastMondays[i];
+              const ws = pastWeekStarts[i];
               const pct = q.data?.percent ?? 0;
               const isCurrentWeek = ws === weekStart;
               return (

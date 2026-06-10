@@ -13,6 +13,7 @@ export type TaskRecord = {
   reminder: boolean;
   reminderMin: number;
   active: boolean;
+  notes?: string | null;
   categoryId?: string | null;
   recurrenceType?: string;
   biweeklyAnchor?: string | null;
@@ -21,9 +22,13 @@ export type TaskRecord = {
   monthlyWeek?: number | null;
 };
 
-export async function listTasks(userId: string, type?: 'RECURRING' | 'SCHEDULED') {
+export async function listTasks(userId: string, type?: 'RECURRING' | 'SCHEDULED', includeDeleted = false) {
   return prisma.task.findMany({
-    where: { userId, ...(type ? { type } : {}) },
+    where: {
+      userId,
+      ...(type ? { type } : {}),
+      ...(!includeDeleted ? { deletedAt: null } : {}),
+    },
     orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
     include: { category: { select: { id: true, name: true, color: true } } },
   });
@@ -43,6 +48,7 @@ export async function createTask(userId: string, input: Omit<TaskRecord, 'id' | 
       reminder: input.reminder,
       reminderMin: input.reminderMin,
       active: input.active,
+      notes: input.notes ?? '',
       categoryId: input.categoryId ?? null,
       recurrenceType: input.recurrenceType ?? 'weekly',
       biweeklyAnchor: input.biweeklyAnchor ?? null,
@@ -70,6 +76,7 @@ export async function updateTask(userId: string, id: string, input: Partial<Task
       reminder: input.reminder,
       reminderMin: input.reminderMin,
       active: input.active,
+      notes: input.notes ?? undefined,
       categoryId: input.categoryId ?? null,
       recurrenceType: input.recurrenceType,
       biweeklyAnchor: input.biweeklyAnchor ?? null,
@@ -83,6 +90,7 @@ export async function updateTask(userId: string, id: string, input: Partial<Task
 export async function deleteTask(userId: string, id: string) {
   const existing = await prisma.task.findFirst({ where: { id, userId } });
   if (!existing) throw new Error('Tarefa não encontrada');
-  await prisma.task.delete({ where: { id } });
+  const today = new Date().toISOString().slice(0, 10);
+  await prisma.task.update({ where: { id }, data: { deletedAt: today } });
   return { success: true };
 }

@@ -9,6 +9,11 @@ import {
   forgotPassword,
   resetPassword,
   resendVerification,
+  updateProfile,
+  changePassword,
+  deleteAccount,
+  verifyEmailChange,
+  cancelEmailChange,
 } from './auth.service.js';
 
 const registerInputSchema = z.object({
@@ -110,5 +115,60 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
       const safe = msg === 'Link inválido ou expirado' ? msg : 'Erro ao redefinir senha. Tente novamente.';
       return reply.code(400).send({ statusCode: 400, message: safe });
     }
+  });
+
+  app.patch('/profile', async (request, reply) => {
+    const userId = request.user?.sub;
+    if (!userId) return reply.code(401).send({ statusCode: 401, message: 'Não autenticado' });
+    const { name, email } = request.body as { name?: string; email?: string };
+    try {
+      const user = await updateProfile(userId, { name, email });
+      return reply.send(user);
+    } catch (error) {
+      return reply.code(400).send({ statusCode: 400, message: error instanceof Error ? error.message : 'Erro ao atualizar perfil' });
+    }
+  });
+
+  app.post('/change-password', async (request, reply) => {
+    const userId = request.user?.sub;
+    if (!userId) return reply.code(401).send({ statusCode: 401, message: 'Não autenticado' });
+    const { currentPassword, newPassword } = request.body as { currentPassword?: string; newPassword?: string };
+    if (!currentPassword || !newPassword) return reply.code(400).send({ statusCode: 400, message: 'Dados ausentes' });
+    if (newPassword.length < 6) return reply.code(400).send({ statusCode: 400, message: 'Nova senha muito curta (mín. 6 caracteres)' });
+    try {
+      await changePassword(userId, currentPassword, newPassword);
+      return reply.send({ success: true });
+    } catch (error) {
+      return reply.code(400).send({ statusCode: 400, message: error instanceof Error ? error.message : 'Erro ao alterar senha' });
+    }
+  });
+
+  app.delete('/account', async (request, reply) => {
+    const userId = request.user?.sub;
+    if (!userId) return reply.code(401).send({ statusCode: 401, message: 'Não autenticado' });
+    try {
+      await deleteAccount(userId);
+      return reply.send({ success: true });
+    } catch (error) {
+      return reply.code(500).send({ statusCode: 500, message: 'Erro ao excluir conta' });
+    }
+  });
+
+  app.get('/verify-email-change', async (request, reply) => {
+    const { token } = request.query as { token?: string };
+    if (!token) return reply.code(400).send({ statusCode: 400, message: 'Token ausente' });
+    try {
+      await verifyEmailChange(token);
+      return reply.send({ success: true });
+    } catch (error) {
+      return reply.code(400).send({ statusCode: 400, message: error instanceof Error ? error.message : 'Erro' });
+    }
+  });
+
+  app.post('/cancel-email-change', async (request, reply) => {
+    const userId = request.user?.sub;
+    if (!userId) return reply.code(401).send({ statusCode: 401, message: 'Não autenticado' });
+    await cancelEmailChange(userId);
+    return reply.send({ success: true });
   });
 };

@@ -8,7 +8,7 @@ export const weekRoutes: FastifyPluginAsync = async (app) => {
     if (!userId) return reply.code(401).send({ statusCode: 401, message: 'Não autenticado' });
 
     const start = (request.query as { start?: string }).start ?? new Date().toISOString().slice(0, 10);
-    const tasks = await listTasks(userId);
+    const tasks = await listTasks(userId, undefined, true);
 
     return getWeekOccurrences(
       userId,
@@ -31,6 +31,8 @@ export const weekRoutes: FastifyPluginAsync = async (app) => {
         monthlyDay: task.monthlyDay ?? undefined,
         monthlyWeekday: task.monthlyWeekday ?? undefined,
         monthlyWeek: task.monthlyWeek ?? undefined,
+        deletedAt: task.deletedAt ?? undefined,
+        notes: task.notes ?? undefined,
       })),
       start,
     );

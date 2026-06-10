@@ -17,6 +17,7 @@ type Task = {
   reminder: boolean;
   reminderMin: number;
   active: boolean;
+  notes?: string | null;
   categoryId?: string | null;
   category?: Category | null;
   recurrenceType?: string;
@@ -156,6 +157,7 @@ function getNthWeekday(date: Date): number {
 
 type FormData = {
   title: string;
+  notes: string;
   weekdays: number[];
   startTime: string;
   endTime: string;
@@ -168,6 +170,7 @@ type FormData = {
 
 const EMPTY_FORM: FormData = {
   title: '',
+  notes: '',
   weekdays: [],
   startTime: '08:00',
   endTime: '',
@@ -187,6 +190,7 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
     task
       ? {
           title: task.title,
+          notes: task.notes ?? '',
           weekdays: task.weekdays,
           startTime: task.startTime,
           endTime: task.endTime ?? '',
@@ -218,6 +222,7 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
     if (!form.title.trim()) { setError('Informe o título'); return; }
     const needsDays = form.recurrenceType === 'weekly' || form.recurrenceType === 'biweekly';
     if (needsDays && form.weekdays.length === 0) { setError('Selecione pelo menos um dia'); return; }
+    if (form.endTime && form.endTime <= form.startTime) { setError('O horário de fim deve ser após o de início'); return; }
     setError('');
 
     const now = new Date();
@@ -233,6 +238,7 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
 
     upsert.mutate({
       title: form.title.trim(),
+      notes: form.notes || undefined,
       type: 'RECURRING',
       weekdays: form.weekdays,
       startTime: form.startTime,
@@ -265,6 +271,11 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
           <div className="field">
             <label className="label">Título</label>
             <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex: Exercitar" />
+          </div>
+
+          <div className="field">
+            <label className="label">Descrição (opcional)</label>
+            <textarea className="input" rows={2} style={{ resize: 'none', minHeight: 60 }} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Anotações sobre esta tarefa…" />
           </div>
 
           <div className="field">

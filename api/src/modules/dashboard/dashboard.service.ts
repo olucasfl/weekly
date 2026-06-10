@@ -70,44 +70,53 @@ export async function getDashboard(userId: string, weekStart: string) {
   };
 }
 
-async function computeStreak(userId: string, weekStart: string): Promise<number> {
+async function computeStreak(userId: string, _weekStart: string): Promise<number> {
+  const tasks = await prisma.task.findMany({ where: { userId, active: true } });
+  if (tasks.length === 0) return 0;
+
+  const taskLikes = tasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    type: t.type as 'RECURRING' | 'SCHEDULED',
+    weekdays: t.weekdays,
+    date: t.date ?? undefined,
+    startTime: t.startTime,
+    endTime: t.endTime ?? undefined,
+    reminder: t.reminder,
+    reminderMin: t.reminderMin,
+    active: t.active,
+  }));
+
+  // Check last 365 days going back from yesterday
+  const today = new Date().toISOString().slice(0, 10);
   let streak = 0;
-  let cursor = weekStart;
 
-  for (let i = 0; i < 52; i++) {
-    const from = cursor;
-    const to = offsetDate(cursor, 6);
+  for (let i = 1; i <= 365; i++) {
+    const dateStr = offsetDate(today, -i);
+    // Build occurrences for the week that contains this date, then filter to just this day
+    const weekMonday = mondayOfDate(dateStr);
+    const occsForWeek = buildWeekOccurrences(taskLikes, weekMonday);
+    const occsForDay = occsForWeek.filter((o) => o.date === dateStr);
 
-    const tasks = await prisma.task.findMany({ where: { userId, active: true } });
-    if (tasks.length === 0) break;
+    if (occsForDay.length === 0) continue; // no tasks this day — transparent
 
-    const occs = buildWeekOccurrences(
-      tasks.map((t) => ({
-        id: t.id,
-        title: t.title,
-        type: t.type as 'RECURRING' | 'SCHEDULED',
-        weekdays: t.weekdays,
-        date: t.date ?? undefined,
-        startTime: t.startTime,
-        endTime: t.endTime ?? undefined,
-        reminder: t.reminder,
-        reminderMin: t.reminderMin,
-        active: t.active,
-      })),
-      from,
-    );
-    if (occs.length === 0) break;
-
-    const comps = await prisma.completion.findMany({ where: { userId, date: { gte: from, lte: to } } });
-    const doneSet = new Set(comps.filter((c) => c.done).map((c) => `${c.taskId}:${c.date}`));
-    const allDone = occs.every((o) => doneSet.has(`${o.task.id}:${o.date}`));
+    const comps = await prisma.completion.findMany({ where: { userId, date: dateStr } });
+    const doneSet = new Set(comps.filter((c) => c.done).map((c) => c.taskId));
+    const allDone = occsForDay.every((o) => doneSet.has(o.task.id));
 
     if (!allDone) break;
     streak++;
-    cursor = offsetDate(cursor, -7);
   }
 
   return streak;
+}
+
+function mondayOfDate(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  const day = d.getUTCDay();
+  const diff = (day + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - diff);
+  return d.toISOString().slice(0, 10);
 }
 
 function offsetDate(dateStr: string, days: number): string {

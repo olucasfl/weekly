@@ -13,9 +13,12 @@ model User {
   email             String             @unique
   password          String
   emailVerified     Boolean            @default(false)
-  verificationToken String?            @unique
-  resetToken        String?            @unique
-  resetTokenExpiry  DateTime?
+  verificationToken  String?            @unique
+  resetToken         String?            @unique
+  resetTokenExpiry   DateTime?
+  pendingEmail       String?
+  pendingEmailToken  String?            @unique
+  pendingEmailExpiry DateTime?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   categories        Category[]
@@ -51,6 +54,8 @@ model Task {
   reminder        Boolean      @default(true)
   reminderMin     Int          @default(60)
   active          Boolean      @default(true)
+  deletedAt       String?
+  notes           String?      @default("")
   categoryId      String?
   category        Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   recurrenceType  String       @default("weekly")

@@ -1,25 +1,300 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Bell, BellOff, LogOut, Smartphone, Info, Moon, Sun } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { User, Bell, BellOff, LogOut, Smartphone, Info, Moon, Sun, Pencil, Key, Trash2, X, Check, ChevronRight, Clock, AlertCircle } from 'lucide-react';
 import { BottomNav } from '../../components/BottomNav';
 import { LogoMark } from '../../components/Logo';
 import { useAuthStore } from '../../store/auth';
 import { useThemeStore } from '../../store/theme';
 import { api } from '../../lib/api';
 
+type ProfileData = { id: string; name: string; email: string; pendingEmail: string | null };
+
 function getInitials(name: string) {
   return name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase();
 }
 
+// ─── EditProfileModal ───────────────────────────────────────────
+function EditProfileModal({ profile, onClose, onSaved }: { profile: ProfileData; onClose: () => void; onSaved: () => void }) {
+  const setUser = useAuthStore((s) => s.setUser);
+  const [name, setName] = useState(profile.name);
+  const [email, setEmail] = useState(profile.email);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [emailPending, setEmailPending] = useState(false);
+
+  const emailChanged = email.trim() !== profile.email;
+
+  async function submit() {
+    if (!name.trim()) { setError('Informe o nome'); return; }
+    if (!email.trim()) { setError('Informe o email'); return; }
+    setLoading(true); setError('');
+    try {
+      const updated = await api<{ id: string; name: string; email: string; pendingEmail: string | null; emailChangePending: boolean }>('/auth/profile', {
+        method: 'PATCH',
+        body: JSON.stringify({ name: name.trim(), email: email.trim() }),
+      });
+      setUser({ id: updated.id, name: updated.name, email: updated.email });
+      if (updated.emailChangePending) {
+        setEmailPending(true);
+      } else {
+        onSaved();
+        onClose();
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao salvar');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (emailPending) {
+    return (
+      <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+        <div className="modal">
+          <div className="modal-handle" />
+          <div className="modal-header">
+            <span className="modal-title">Verificação enviada</span>
+            <button className="modal-close" onClick={() => { onSaved(); onClose(); }}><X size={18} /></button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', textAlign: 'center', padding: '8px 0' }}>
+            <Clock size={40} strokeWidth={1.5} color="var(--brand)" />
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.6, margin: 0 }}>
+              Enviamos um link de confirmação para <strong>{email.trim()}</strong>.<br />
+              Clique no link para concluir a troca. Enquanto isso, seu email atual continua ativo.
+            </p>
+          </div>
+          <div className="modal-actions">
+            <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => { onSaved(); onClose(); }}>Entendido</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-handle" />
+        <div className="modal-header">
+          <span className="modal-title">Editar perfil</span>
+          <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="field">
+            <label className="label">Nome</label>
+            <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" />
+          </div>
+          <div className="field">
+            <label className="label">Email</label>
+            <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" />
+            {emailChanged && (
+              <div style={{ fontSize: '0.75rem', color: 'var(--warning)', marginTop: 4, display: 'flex', gap: 5, alignItems: 'center' }}>
+                <AlertCircle size={12} />
+                Um link de verificação será enviado para o novo email
+              </div>
+            )}
+          </div>
+        </div>
+        {error && <div className="error-msg" style={{ marginTop: 12 }}>{error}</div>}
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-primary" onClick={submit} disabled={loading}>
+            {loading ? 'Salvando…' : 'Salvar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ChangePasswordModal ────────────────────────────────────────
+function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const user = useAuthStore((s) => s.user);
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+
+  async function submit() {
+    if (!current) { setError('Informe a senha atual'); return; }
+    if (next.length < 6) { setError('Nova senha deve ter ao menos 6 caracteres'); return; }
+    if (next !== confirm) { setError('As senhas não coincidem'); return; }
+    setLoading(true); setError('');
+    try {
+      await api('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ currentPassword: current, newPassword: next }),
+      });
+      setSuccess(true);
+      setTimeout(onClose, 1500);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao alterar senha');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function sendForgotPassword() {
+    if (!user?.email) return;
+    setLoading(true);
+    try {
+      await api('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email: user.email }) });
+      setResetSent(true);
+    } catch {
+      // silencioso — mesmo comportamento do forgot password screen
+      setResetSent(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-handle" />
+        <div className="modal-header">
+          <span className="modal-title">Alterar senha</span>
+          <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        {success ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--success)', padding: '12px 0' }}>
+            <Check size={18} />
+            <span>Senha alterada com sucesso!</span>
+          </div>
+        ) : resetSent ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'center', textAlign: 'center', padding: '8px 0' }}>
+            <Check size={36} strokeWidth={1.5} color="var(--success)" />
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem', lineHeight: 1.6, margin: 0 }}>
+              Enviamos um link de redefinição para <strong>{user?.email}</strong>.<br />Verifique sua caixa de entrada.
+            </p>
+            <button className="btn btn-primary" style={{ marginTop: 4 }} onClick={onClose}>Fechar</button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="field">
+              <label className="label">Senha atual</label>
+              <input className="input" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} placeholder="••••••" />
+            </div>
+            <div className="field">
+              <label className="label">Nova senha</label>
+              <input className="input" type="password" value={next} onChange={(e) => setNext(e.target.value)} placeholder="Mínimo 6 caracteres" />
+            </div>
+            <div className="field">
+              <label className="label">Confirmar nova senha</label>
+              <input className="input" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} placeholder="Repita a nova senha" />
+            </div>
+            <button
+              type="button"
+              onClick={sendForgotPassword}
+              disabled={loading}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--brand)', fontSize: '0.82rem', textAlign: 'left', padding: 0, fontFamily: 'var(--font)' }}
+            >
+              Esqueci minha senha atual
+            </button>
+          </div>
+        )}
+        {error && <div className="error-msg" style={{ marginTop: 12 }}>{error}</div>}
+        {!success && !resetSent && (
+          <div className="modal-actions">
+            <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+            <button className="btn btn-primary" onClick={submit} disabled={loading}>
+              {loading ? 'Salvando…' : 'Alterar'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── DeleteAccountModal ─────────────────────────────────────────
+function DeleteAccountModal({ onClose, onDeleted }: { onClose: () => void; onDeleted: () => void }) {
+  const user = useAuthStore((s) => s.user);
+  const [typed, setTyped] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const confirmPhrase = user?.email ?? '';
+  const isConfirmed = typed === confirmPhrase;
+
+  async function submit() {
+    if (!isConfirmed) return;
+    setLoading(true); setError('');
+    try {
+      await api('/auth/account', { method: 'DELETE' });
+      onDeleted();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erro ao excluir conta');
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-handle" />
+        <div className="modal-header">
+          <span className="modal-title" style={{ color: 'var(--danger)' }}>Excluir conta</span>
+          <button className="modal-close" onClick={onClose}><X size={18} /></button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ background: 'var(--danger-bg)', borderRadius: 'var(--r-md)', padding: '12px 14px', fontSize: '0.85rem', color: 'var(--danger)' }}>
+            <strong>Atenção:</strong> esta ação é irreversível. Todos os seus dados (tarefas, eventos, histórico, categorias) serão excluídos permanentemente.
+          </div>
+          <div className="field">
+            <label className="label">Para confirmar, digite seu email: <strong>{confirmPhrase}</strong></label>
+            <input
+              className="input"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder={confirmPhrase}
+              style={{ borderColor: typed && !isConfirmed ? 'var(--danger)' : undefined }}
+            />
+          </div>
+        </div>
+        {error && <div className="error-msg" style={{ marginTop: 12 }}>{error}</div>}
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
+          <button className="btn btn-danger" onClick={submit} disabled={!isConfirmed || loading}>
+            {loading ? 'Excluindo…' : 'Excluir conta'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── ProfileScreen ──────────────────────────────────────────────
 export function ProfileScreen() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const clearSession = useAuthStore((s) => s.clearSession);
   const { dark, toggle: toggleTheme } = useThemeStore();
+  const qc = useQueryClient();
+
+  const [modal, setModal] = useState<'edit' | 'password' | 'delete' | null>(null);
+
+  const { data: profile } = useQuery<ProfileData>({
+    queryKey: ['profile'],
+    queryFn: () => api('/auth/me'),
+    staleTime: 30_000,
+  });
+
+  const cancelEmailChangeMutation = useMutation({
+    mutationFn: () => api('/auth/cancel-email-change', { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['profile'] }),
+  });
 
   const [pushSupported, setPushSupported] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushLoading, setPushLoading] = useState(false);
+
+  const [weekStartsSunday, setWeekStartsSunday] = useState(
+    () => localStorage.getItem('weekStartsSunday') === '1'
+  );
 
   useEffect(() => {
     if ('serviceWorker' in navigator && 'PushManager' in window) {
@@ -29,6 +304,11 @@ export function ProfileScreen() {
       }).catch(() => {});
     }
   }, []);
+
+  function toggleWeekStart(val: boolean) {
+    setWeekStartsSunday(val);
+    localStorage.setItem('weekStartsSunday', val ? '1' : '0');
+  }
 
   async function togglePush() {
     setPushLoading(true);
@@ -66,6 +346,11 @@ export function ProfileScreen() {
     navigate('/auth');
   }
 
+  function handleDeleted() {
+    clearSession();
+    navigate('/auth');
+  }
+
   return (
     <>
       <div className="screen-header">
@@ -74,7 +359,7 @@ export function ProfileScreen() {
       </div>
 
       <div className="screen-body">
-        {/* Avatar + user info */}
+        {/* Avatar + user info + edit */}
         <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'linear-gradient(135deg, #7c5cfc, #a78bfa)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             {user?.name
@@ -86,6 +371,49 @@ export function ProfileScreen() {
             <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>{user?.name ?? 'Usuário'}</div>
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{user?.email ?? ''}</div>
           </div>
+          <button
+            className="btn btn-ghost"
+            style={{ padding: '8px 12px', gap: 6, fontSize: '0.8rem' }}
+            onClick={() => setModal('edit')}
+          >
+            <Pencil size={13} strokeWidth={2} />
+            Editar
+          </button>
+        </div>
+
+        {/* Pending email change banner */}
+        {profile?.pendingEmail && (
+          <div style={{ background: 'var(--warning-bg)', borderRadius: 'var(--r-md)', padding: '12px 14px', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <Clock size={15} strokeWidth={2} color="var(--warning)" style={{ flexShrink: 0, marginTop: 2 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--warning)', marginBottom: 2 }}>Troca de email pendente</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                Aguardando verificação de <strong>{profile.pendingEmail}</strong>. Verifique sua caixa de entrada.
+              </div>
+            </div>
+            <button
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--warning)', padding: 2, flexShrink: 0 }}
+              onClick={() => cancelEmailChangeMutation.mutate()}
+              title="Cancelar troca"
+              disabled={cancelEmailChangeMutation.isPending}
+            >
+              <X size={15} />
+            </button>
+          </div>
+        )}
+
+        {/* Account actions */}
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          <button
+            className="profile-action-row"
+            onClick={() => setModal('password')}
+          >
+            <div className="row" style={{ gap: 10 }}>
+              <Key size={15} strokeWidth={2} color="var(--brand)" />
+              <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Alterar senha</span>
+            </div>
+            <ChevronRight size={15} color="var(--text-muted)" />
+          </button>
         </div>
 
         {/* Dark mode */}
@@ -100,6 +428,21 @@ export function ProfileScreen() {
             </div>
             <label className="toggle">
               <input type="checkbox" checked={dark} onChange={toggleTheme} />
+              <div className="toggle-track" />
+            </label>
+          </div>
+        </div>
+
+        {/* Calendar preferences */}
+        <div className="card">
+          <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: 14 }}>Calendário</div>
+          <div className="toggle-row">
+            <div>
+              <div className="toggle-label">Semana começa no domingo</div>
+              <div className="toggle-desc">{weekStartsSunday ? 'Dom → Sáb' : 'Seg → Dom'}</div>
+            </div>
+            <label className="toggle">
+              <input type="checkbox" checked={weekStartsSunday} onChange={(e) => toggleWeekStart(e.target.checked)} />
               <div className="toggle-track" />
             </label>
           </div>
@@ -174,7 +517,27 @@ export function ProfileScreen() {
           <LogOut size={15} strokeWidth={2} />
           Sair da conta
         </button>
+
+        {/* Delete account */}
+        <button
+          className="btn btn-ghost"
+          onClick={() => setModal('delete')}
+          style={{ width: '100%', color: 'var(--text-muted)', gap: 8, fontSize: '0.8rem' }}
+        >
+          <Trash2 size={14} strokeWidth={2} />
+          Excluir conta
+        </button>
       </div>
+
+      {modal === 'edit' && profile && (
+        <EditProfileModal
+          profile={profile}
+          onClose={() => setModal(null)}
+          onSaved={() => qc.invalidateQueries({ queryKey: ['profile'] })}
+        />
+      )}
+      {modal === 'password' && <ChangePasswordModal onClose={() => setModal(null)} />}
+      {modal === 'delete' && <DeleteAccountModal onClose={() => setModal(null)} onDeleted={handleDeleted} />}
 
       <BottomNav />
     </>

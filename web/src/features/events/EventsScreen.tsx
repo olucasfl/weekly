@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Bell, CalendarDays, Search, ArrowRight, X } from 'lucide-react';
+import { Plus, Bell, CalendarDays, Search, ArrowRight, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../../lib/api';
 import { BottomNav } from '../../components/BottomNav';
 import { TaskRowSkeleton } from '../../components/Skeleton';
@@ -15,6 +15,8 @@ type Event = {
   reminder: boolean;
   reminderMin: number;
   active: boolean;
+  deletedAt?: string | null;
+  notes?: string | null;
 };
 
 const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -38,6 +40,7 @@ function todayISO() {
 
 type FormData = {
   title: string;
+  notes: string;
   date: string;
   endDate: string;
   startTime: string;
@@ -45,7 +48,7 @@ type FormData = {
   reminder: boolean;
   reminderMin: number;
 };
-const EMPTY: FormData = { title: '', date: todayISO(), endDate: '', startTime: '09:00', endTime: '', reminder: true, reminderMin: 60 };
+const EMPTY: FormData = { title: '', notes: '', date: todayISO(), endDate: '', startTime: '09:00', endTime: '', reminder: true, reminderMin: 60 };
 
 function EventModal({ event, onClose }: { event: Event | null; onClose: () => void }) {
   const qc = useQueryClient();
@@ -55,6 +58,7 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
     event
       ? {
           title: event.title,
+          notes: event.notes ?? '',
           date: event.date ?? todayISO(),
           endDate: event.endDate ?? '',
           startTime: event.startTime,
@@ -83,10 +87,25 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
   function submit() {
     if (!form.title.trim()) { setError('Informe o título'); return; }
     if (!form.date) { setError('Informe a data de início'); return; }
+
+    const today = todayISO();
+    const now = new Date();
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    if (!isEdit && form.date < today) {
+      setError('Não é possível criar um evento em uma data passada'); return;
+    }
+    if (!isEdit && form.date === today && form.startTime < currentTime) {
+      setError('O horário de início já passou'); return;
+    }
+    if (form.endTime && form.endTime <= form.startTime) {
+      setError('O horário de fim deve ser após o de início'); return;
+    }
     if (isMultiDay && form.endDate <= form.date) { setError('Data de fim deve ser após a data de início'); return; }
     setError('');
     upsert.mutate({
       title: form.title.trim(),
+      notes: form.notes || undefined,
       type: 'SCHEDULED',
       weekdays: [],
       date: form.date,
@@ -112,6 +131,11 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
           <div className="field">
             <label className="label">Título</label>
             <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex: Reunião com cliente" />
+          </div>
+
+          <div className="field">
+            <label className="label">Descrição (opcional)</label>
+            <textarea className="input" rows={2} style={{ resize: 'none', minHeight: 60 }} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Anotações sobre este evento…" />
           </div>
 
           {/* Date range */}
@@ -182,25 +206,32 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
 
         {error && <div className="error-msg" style={{ marginTop: 12 }}>{error}</div>}
 
-        <div className="modal-actions">
-          {isEdit && (
-            confirmDelete ? (
-              <>
-                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flex: 1, alignSelf: 'center' }}>Apagar mesmo?</span>
-                <button className="btn btn-ghost" onClick={() => setConfirmDelete(false)}>Não</button>
-                <button className="btn btn-danger" onClick={() => del.mutate()} disabled={del.isPending}>Sim</button>
-              </>
-            ) : (
-              <button className="btn btn-danger" onClick={() => setConfirmDelete(true)}>Apagar</button>
-            )
-          )}
-          {!confirmDelete && <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>}
-          {!confirmDelete && (
-            <button className="btn btn-primary" onClick={submit} disabled={upsert.isPending}>
-              {upsert.isPending ? 'Salvando…' : 'Salvar'}
-            </button>
-          )}
-        </div>
+        {event?.deletedAt ? (
+          <div className="modal-actions">
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', flex: 1 }}>Evento removido — exibido apenas como histórico</div>
+            <button className="btn btn-ghost" onClick={onClose}>Fechar</button>
+          </div>
+        ) : (
+          <div className="modal-actions">
+            {isEdit && (
+              confirmDelete ? (
+                <>
+                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flex: 1, alignSelf: 'center' }}>Apagar mesmo?</span>
+                  <button className="btn btn-ghost" onClick={() => setConfirmDelete(false)}>Não</button>
+                  <button className="btn btn-danger" onClick={() => del.mutate()} disabled={del.isPending}>Sim</button>
+                </>
+              ) : (
+                <button className="btn btn-danger" onClick={() => setConfirmDelete(true)}>Apagar</button>
+              )
+            )}
+            {!confirmDelete && <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>}
+            {!confirmDelete && (
+              <button className="btn btn-primary" onClick={submit} disabled={upsert.isPending}>
+                {upsert.isPending ? 'Salvando…' : 'Salvar'}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -209,6 +240,9 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
 export function EventsScreen() {
   const [modal, setModal] = useState<{ open: boolean; event: Event | null }>({ open: false, event: null });
   const [search, setSearch] = useState('');
+  const [showToday, setShowToday] = useState(true);
+  const [showUpcoming, setShowUpcoming] = useState(true);
+  const [showPast, setShowPast] = useState(false);
 
   const { data: events = [], isLoading } = useQuery<Event[]>({
     queryKey: ['events'],
@@ -218,13 +252,22 @@ export function EventsScreen() {
   const today = todayISO();
   const q = search.trim().toLowerCase();
   const filtered = q ? events.filter((e) => e.title.toLowerCase().includes(q)) : events;
+
   const todayEvents = filtered.filter((e) => {
+    if (e.deletedAt) return false;
     if (!e.date) return false;
     if (e.endDate) return e.date <= today && e.endDate >= today;
     return e.date === today;
   }).sort((a, b) => a.startTime.localeCompare(b.startTime));
-  const upcoming = filtered.filter((e) => (e.date ?? '') > today).sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.startTime.localeCompare(b.startTime));
-  const past = filtered.filter((e) => (e.endDate ? e.endDate : e.date ?? '') < today).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+
+  const upcoming = filtered.filter((e) => {
+    if (e.deletedAt) return false;
+    return (e.date ?? '') > today;
+  }).sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.startTime.localeCompare(b.startTime));
+
+  const past = filtered.filter((e) =>
+    e.deletedAt || (e.endDate ? e.endDate : e.date ?? '') < today
+  ).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
 
   function dateRangeLabel(ev: Event) {
     if (ev.endDate) {
@@ -276,8 +319,14 @@ export function EventsScreen() {
 
         {todayEvents.length > 0 && (
           <>
-            <div className="text-xs font-semibold" style={{ paddingLeft: 2, textTransform: 'uppercase', letterSpacing: '0.06em', color: EVENT_COLOR }}>Hoje</div>
-            {todayEvents.map((ev) => (
+            <button className="section-toggle" onClick={() => setShowToday((v) => !v)}>
+              <span style={{ color: EVENT_COLOR }}>Hoje</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                {todayEvents.length}
+                {showToday ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </span>
+            </button>
+            {showToday && todayEvents.map((ev) => (
               <div key={ev.id} className="task-row" onClick={() => setModal({ open: true, event: ev })} style={{ borderLeft: `3px solid ${EVENT_COLOR}` }}>
                 <div className="task-cat-bar" style={{ background: EVENT_COLOR }} />
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 40, gap: 1 }}>
@@ -305,8 +354,14 @@ export function EventsScreen() {
         {upcoming.length > 0 && (
           <>
             {todayEvents.length > 0 && <div className="divider" />}
-            <div className="text-xs text-muted font-semibold" style={{ paddingLeft: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Próximos</div>
-            {upcoming.map((ev) => (
+            <button className="section-toggle" onClick={() => setShowUpcoming((v) => !v)}>
+              <span>Próximos</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                {upcoming.length}
+                {showUpcoming ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </span>
+            </button>
+            {showUpcoming && upcoming.map((ev) => (
               <div key={ev.id} className="task-row" onClick={() => setModal({ open: true, event: ev })}>
                 <div className="task-cat-bar" style={{ background: EVENT_COLOR }} />
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 40, gap: 1 }}>
@@ -333,8 +388,14 @@ export function EventsScreen() {
         {past.length > 0 && (
           <>
             <div className="divider" />
-            <div className="text-xs text-muted font-semibold" style={{ paddingLeft: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Passados</div>
-            {past.map((ev) => (
+            <button className="section-toggle" onClick={() => setShowPast((v) => !v)}>
+              <span style={{ color: 'var(--text-muted)' }}>Passados</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                {past.length}
+                {showPast ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+              </span>
+            </button>
+            {showPast && past.map((ev) => (
               <div key={ev.id} className="task-row done" onClick={() => setModal({ open: true, event: ev })}>
                 <div className="task-cat-bar" style={{ background: EVENT_COLOR, opacity: 0.4 }} />
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 40, gap: 1 }}>

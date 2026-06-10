@@ -13,6 +13,7 @@ const taskInputSchema = z.object({
   reminderMin: z.number().int().default(60),
   categoryId: z.string().nullable().optional(),
   active: z.boolean().default(true),
+  notes: z.string().optional(),
   recurrenceType: z.enum(['weekly', 'biweekly', 'monthly_date', 'monthly_weekday']).default('weekly'),
   biweeklyAnchor: z.string().nullable().optional(),
   monthlyDay: z.number().int().min(1).max(31).nullable().optional(),
@@ -28,7 +29,9 @@ export const tasksRoutes: FastifyPluginAsync = async (app) => {
     }
 
     const type = (request.query as { type?: string }).type;
-    return listTasks(userId, type === 'recurring' ? 'RECURRING' : type === 'scheduled' ? 'SCHEDULED' : undefined);
+    const taskType = type === 'recurring' ? 'RECURRING' : type === 'scheduled' ? 'SCHEDULED' : undefined;
+    const includeDeleted = type === 'scheduled'; // eventos mantêm histórico
+    return listTasks(userId, taskType, includeDeleted);
   });
 
   app.post('/', async (request, reply) => {
