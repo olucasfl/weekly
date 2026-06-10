@@ -1,6 +1,7 @@
 {
   "name": "rotina-workspace",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev:api": "npm --prefix api run dev",
     "dev:web": "npm --prefix web run dev"
