@@ -131,7 +131,8 @@ export function EventsScreen() {
   });
 
   const today = todayISO();
-  const upcoming = events.filter((e) => (e.date ?? '') >= today).sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''));
+  const todayEvents = events.filter((e) => e.date === today).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const upcoming = events.filter((e) => (e.date ?? '') > today).sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.startTime.localeCompare(b.startTime));
   const past = events.filter((e) => (e.date ?? '') < today).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
 
   return (
@@ -152,8 +153,36 @@ export function EventsScreen() {
           </div>
         )}
 
+        {todayEvents.length > 0 && (
+          <>
+            <div className="text-xs font-semibold" style={{ paddingLeft: 2, textTransform: 'uppercase', letterSpacing: '0.06em', color: EVENT_COLOR }}>Hoje</div>
+            {todayEvents.map((ev) => (
+              <div key={ev.id} className="task-row" onClick={() => setModal({ open: true, event: ev })} style={{ borderLeft: `3px solid ${EVENT_COLOR}` }}>
+                <div className="task-cat-bar" style={{ background: EVENT_COLOR }} />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 40, gap: 1 }}>
+                  <span style={{ fontSize: '0.65rem', fontWeight: 700, color: EVENT_COLOR, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    {MONTH_NAMES[new Date().getMonth()]}
+                  </span>
+                  <span style={{ fontSize: '1.2rem', fontWeight: 800, color: EVENT_COLOR, lineHeight: 1 }}>
+                    {new Date().getDate()}
+                  </span>
+                </div>
+                <div className="task-info">
+                  <div className="task-name">{ev.title}</div>
+                  <div className="task-meta">
+                    {ev.startTime}{ev.endTime ? ` – ${ev.endTime}` : ''}
+                    <span style={{ color: EVENT_COLOR, fontWeight: 600, marginLeft: 5 }}>· Hoje</span>
+                  </div>
+                </div>
+                {ev.reminder && <Bell size={14} strokeWidth={1.8} color={EVENT_COLOR} />}
+              </div>
+            ))}
+          </>
+        )}
+
         {upcoming.length > 0 && (
           <>
+            {todayEvents.length > 0 && <div className="divider" />}
             <div className="text-xs text-muted font-semibold" style={{ paddingLeft: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Próximos</div>
             {upcoming.map((ev) => (
               <div key={ev.id} className="task-row" onClick={() => setModal({ open: true, event: ev })}>
@@ -171,7 +200,6 @@ export function EventsScreen() {
                   <div className="task-meta">
                     {ev.startTime}{ev.endTime ? ` – ${ev.endTime}` : ''}
                     <span style={{ color: EVENT_COLOR, fontWeight: 600, marginLeft: 5 }}>· Evento</span>
-                    {ev.date === today && <span className="pill pill-sm" style={{ marginLeft: 6 }}>Hoje</span>}
                   </div>
                 </div>
                 {ev.reminder && <Bell size={14} strokeWidth={1.8} color="var(--text-muted)" />}
