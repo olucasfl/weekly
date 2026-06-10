@@ -122,7 +122,7 @@ body::before {
 /* ─── Shell ───────────────────────────────────────────────────── */
 .app-shell {
   min-height: 100dvh;
-  padding-bottom: calc(var(--nav-h) + 8px);
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 8px);
   max-width: 480px;
   margin: 0 auto;
 }
@@ -311,7 +311,7 @@ body::before {
 
 .fab {
   position: fixed;
-  bottom: calc(var(--nav-h) + 14px);
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 14px);
   right: 20px;
   width: 52px; height: 52px;
   border-radius: var(--r-full);
@@ -427,12 +427,13 @@ body::before {
 /* ─── Bottom nav ──────────────────────────────────────────────── */
 .bottom-nav {
   position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-  width: 100%; max-width: 480px; height: var(--nav-h);
+  width: 100%; max-width: 480px;
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom));
   background: var(--bg-overlay);
   backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
   border-top: 1px solid var(--border);
-  display: flex; align-items: stretch;
-  padding: 0 6px 6px;
+  display: flex; align-items: flex-start;
+  padding: 6px 6px env(safe-area-inset-bottom);
   z-index: 50;
 }
 .nav-item {
