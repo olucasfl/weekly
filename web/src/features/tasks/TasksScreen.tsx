@@ -471,8 +471,9 @@ export function TasksScreen() {
         ))}
       </div>
 
-      <button className="fab" onClick={() => setTaskModal({ open: true, task: null })} aria-label="Nova tarefa">
-        <Plus size={22} strokeWidth={2.5} />
+      <button className="fab" onClick={() => setTaskModal({ open: true, task: null })} aria-label="Novo afazer">
+        <Plus size={16} strokeWidth={3} />
+        Novo afazer
       </button>
 
       {catModal.open && (

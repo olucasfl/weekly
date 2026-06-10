@@ -252,7 +252,8 @@ export function EventsScreen() {
       </div>
 
       <button className="fab" onClick={() => setModal({ open: true, event: null })} aria-label="Novo evento">
-        <Plus size={22} strokeWidth={2.5} />
+        <Plus size={16} strokeWidth={3} />
+        Novo evento
       </button>
 
       {modal.open && <EventModal event={modal.event} onClose={() => setModal({ open: false, event: null })} />}

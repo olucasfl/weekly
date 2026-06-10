@@ -92,9 +92,9 @@ export function WeekScreen() {
       );
       return { prev };
     },
-    onError: (_err, _vars, ctx) => {
+    onError: (err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(['week', weekStartISO], ctx.prev);
-      showError('Erro ao salvar. O check foi revertido.');
+      showError(err instanceof Error ? err.message : 'Erro ao salvar. O check foi revertido.');
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ['week', weekStartISO] }),
   });
@@ -112,9 +112,9 @@ export function WeekScreen() {
       );
       return { prev };
     },
-    onError: (_err, _vars, ctx) => {
+    onError: (err, _vars, ctx) => {
       if (ctx?.prev) qc.setQueryData(['week', weekStartISO], ctx.prev);
-      showError('Erro ao salvar. As alterações foram revertidas.');
+      showError(err instanceof Error ? err.message : 'Erro ao salvar. As alterações foram revertidas.');
     },
     onSettled: () => qc.invalidateQueries({ queryKey: ['week', weekStartISO] }),
   });

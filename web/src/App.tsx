@@ -9,6 +9,7 @@ import { EventsScreen }  from './features/events/EventsScreen';
 import { ProgressScreen } from './features/progress/ProgressScreen';
 import { ProfileScreen } from './features/profile/ProfileScreen';
 import { SplashScreen, isPWA } from './components/SplashScreen';
+import { OfflineBanner } from './components/OfflineBanner';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const user = useAuthStore((s) => s.user);
@@ -20,6 +21,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <OfflineBanner />
       {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
       <Routes>
         <Route path="/auth" element={<AuthScreen />} />

@@ -52,6 +52,11 @@ function buildHeaders(token: string | null, init?: RequestInit) {
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  if (!navigator.onLine && method !== 'GET') {
+    throw new Error('Você está offline. Conecte-se à internet para fazer alterações.');
+  }
+
   const token = _getToken?.() ?? null;
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
