@@ -395,8 +395,20 @@ export function TasksScreen() {
   return (
     <>
       <div className="screen-header">
-        <div className="screen-title">Afazeres</div>
-        <div className="screen-subtitle">Tarefas recorrentes da sua rotina</div>
+        <div className="row-between">
+          <div>
+            <div className="screen-title">Afazeres</div>
+            <div className="screen-subtitle">Tarefas recorrentes da sua rotina</div>
+          </div>
+          <button
+            className="btn btn-primary"
+            style={{ gap: 6, paddingLeft: 14, paddingRight: 16, height: 38, fontSize: '0.85rem', flexShrink: 0 }}
+            onClick={() => setTaskModal({ open: true, task: null })}
+          >
+            <Plus size={15} strokeWidth={2.8} />
+            Novo
+          </button>
+        </div>
       </div>
 
       <div className="screen-body">
@@ -470,11 +482,6 @@ export function TasksScreen() {
           </div>
         ))}
       </div>
-
-      <button className="fab" onClick={() => setTaskModal({ open: true, task: null })} aria-label="Novo afazer">
-        <Plus size={16} strokeWidth={3} />
-        Novo afazer
-      </button>
 
       {catModal.open && (
         <CategoryModal

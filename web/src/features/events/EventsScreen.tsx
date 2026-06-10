@@ -142,8 +142,20 @@ export function EventsScreen() {
   return (
     <>
       <div className="screen-header">
-        <div className="screen-title">Eventos</div>
-        <div className="screen-subtitle">Compromissos agendados por data</div>
+        <div className="row-between">
+          <div>
+            <div className="screen-title">Eventos</div>
+            <div className="screen-subtitle">Compromissos agendados por data</div>
+          </div>
+          <button
+            className="btn btn-primary"
+            style={{ gap: 6, paddingLeft: 14, paddingRight: 16, height: 38, fontSize: '0.85rem', flexShrink: 0 }}
+            onClick={() => setModal({ open: true, event: null })}
+          >
+            <Plus size={15} strokeWidth={2.8} />
+            Novo
+          </button>
+        </div>
       </div>
 
       <div className="screen-body">
@@ -250,11 +262,6 @@ export function EventsScreen() {
           </>
         )}
       </div>
-
-      <button className="fab" onClick={() => setModal({ open: true, event: null })} aria-label="Novo evento">
-        <Plus size={16} strokeWidth={3} />
-        Novo evento
-      </button>
 
       {modal.open && <EventModal event={modal.event} onClose={() => setModal({ open: false, event: null })} />}
       <BottomNav />
