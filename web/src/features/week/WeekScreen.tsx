@@ -36,6 +36,7 @@ export function WeekScreen() {
   const [selectedDate, setSelectedDate] = useState(() => localISO(today));
   const [viewMode, setViewMode]         = useState<ViewMode>(() => (localStorage.getItem('weekViewMode') as ViewMode) ?? 'list');
   const [filterCatId, setFilterCatId]   = useState<string | null>(null);
+  const [toastError, setToastError]     = useState<string | null>(null);
 
   useEffect(() => { localStorage.setItem('weekViewMode', viewMode); }, [viewMode]);
 
@@ -74,10 +75,27 @@ export function WeekScreen() {
     saveTimerRef.current = setTimeout(() => noteMutation.mutate(v), 800);
   }
 
+  function showError(msg: string) {
+    setToastError(msg);
+    setTimeout(() => setToastError(null), 3500);
+  }
+
   const toggleMutation = useMutation({
     mutationFn: ({ taskId, date, done }: { taskId: string; date: string; done: boolean }) =>
       api('/completions', { method: 'PUT', body: JSON.stringify({ taskId, date, done }) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['week', weekStartISO] }),
+    onMutate: async ({ taskId, date, done }) => {
+      await qc.cancelQueries({ queryKey: ['week', weekStartISO] });
+      const prev = qc.getQueryData<Occurrence[]>(['week', weekStartISO]);
+      qc.setQueryData<Occurrence[]>(['week', weekStartISO], (old) =>
+        old?.map((o) => o.taskId === taskId && o.date === date ? { ...o, done } : o) ?? []
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['week', weekStartISO], ctx.prev);
+      showError('Erro ao salvar. O check foi revertido.');
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['week', weekStartISO] }),
   });
 
   const bulkMutation = useMutation({
@@ -85,7 +103,19 @@ export function WeekScreen() {
       Promise.all(taskIds.map((taskId) =>
         api('/completions', { method: 'PUT', body: JSON.stringify({ taskId, date, done }) })
       )),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['week', weekStartISO] }),
+    onMutate: async ({ taskIds, date, done }) => {
+      await qc.cancelQueries({ queryKey: ['week', weekStartISO] });
+      const prev = qc.getQueryData<Occurrence[]>(['week', weekStartISO]);
+      qc.setQueryData<Occurrence[]>(['week', weekStartISO], (old) =>
+        old?.map((o) => taskIds.includes(o.taskId) && o.date === date ? { ...o, done } : o) ?? []
+      );
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['week', weekStartISO], ctx.prev);
+      showError('Erro ao salvar. As alterações foram revertidas.');
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['week', weekStartISO] }),
   });
 
   function onToggle(taskId: string, date: string, done: boolean) {
@@ -311,6 +341,17 @@ export function WeekScreen() {
               onChange={(e) => handleNoteChange(e.target.value)}
             />
           </div>
+        </div>
+      )}
+
+      {toastError && (
+        <div style={{
+          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+          background: '#ef4444', color: '#fff', borderRadius: 10, padding: '10px 18px',
+          fontSize: '0.85rem', fontWeight: 600, zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+          whiteSpace: 'nowrap', pointerEvents: 'none',
+        }}>
+          {toastError}
         </div>
       )}
 
