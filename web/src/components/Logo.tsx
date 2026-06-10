@@ -103,26 +103,21 @@ type LogoFullProps = {
 
 /** Logo completo: ícone + wordmark */
 export function LogoFull({ iconSize = 36, textSize = 'md', direction = 'row' }: LogoFullProps) {
+  const containerSize = iconSize + 12;
   return (
     <div style={{
       display: 'flex',
       flexDirection: direction === 'col' ? 'column' : 'row',
       alignItems: 'center',
-      gap: direction === 'col' ? 10 : 10,
+      gap: 10,
     }}>
-      <div style={{
-        width: iconSize + 12,
-        height: iconSize + 12,
-        borderRadius: Math.round((iconSize + 12) * 0.28),
-        background: 'var(--brand-grad)',
-        boxShadow: 'var(--shadow-brand)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-      }}>
-        <LogoMark size={iconSize} />
-      </div>
+      <img
+        src="/weekly-192.png"
+        alt="Weekly"
+        width={containerSize}
+        height={containerSize}
+        style={{ borderRadius: Math.round(containerSize * 0.22), flexShrink: 0, display: 'block' }}
+      />
       <LogoWordmark size={textSize} />
     </div>
   );
