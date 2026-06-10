@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Check, Leaf, CheckCheck, RotateCcw, List, LayoutGrid, CalendarDays } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Leaf, CheckCheck, RotateCcw, List, LayoutGrid, CalendarDays, ArrowRight } from 'lucide-react';
 import { api } from '../../lib/api';
 import { localISO, mondayOf, addDays } from '../../lib/date';
 import { BottomNav } from '../../components/BottomNav';
@@ -21,9 +21,17 @@ type Occurrence = {
   type?: string;
   categoryId?: string;
   category?: { id: string; name: string; color: string } | null;
+  isMultiDay?: boolean;
+  multiDayPos?: 'start' | 'middle' | 'end' | null;
+  endDate?: string | null;
 };
 
 type Category = { id: string; name: string; color: string };
+
+function fmtShort(iso: string) {
+  const d = new Date(iso + 'T12:00:00');
+  return `${d.getDate()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
 
 const DAY_NAMES      = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const DAY_NAMES_FULL = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
@@ -291,31 +299,64 @@ export function WeekScreen() {
             </div>
           )}
 
-          {dayOccurrences.map((item) => (
-            <div
-              key={`${item.taskId}-${item.date}`}
-              className={`task-row${item.done ? ' done' : ''}`}
-              onClick={() => onToggle(item.taskId, item.date, !item.done)}
-            >
-              {(item.category || item.type === 'SCHEDULED') && (
-                <div className="task-cat-bar" style={{ background: item.category?.color ?? EVENT_COLOR }} />
-              )}
-              <div className={`task-check${item.done ? ' checked' : ''}`}>
-                <Check size={11} strokeWidth={3} color="white" />
-              </div>
-              <div className="task-info">
-                <div className={`task-name${item.done ? ' done' : ''}`}>{item.title}</div>
-                <div className="task-meta">
-                  {item.startTime}{item.endTime ? ` – ${item.endTime}` : ''}
-                  {item.category ? (
-                    <span style={{ color: item.category.color, fontWeight: 600, marginLeft: 5 }}>· {item.category.name}</span>
-                  ) : item.type === 'SCHEDULED' ? (
-                    <span style={{ color: EVENT_COLOR, fontWeight: 600, marginLeft: 5 }}>· Evento</span>
-                  ) : null}
+          {dayOccurrences.map((item) => {
+            const color = item.category?.color ?? (item.type === 'SCHEDULED' ? EVENT_COLOR : undefined);
+            if (item.isMultiDay) {
+              const isStart = item.multiDayPos === 'start';
+              const isEnd = item.multiDayPos === 'end';
+              const dateLabel = item.endDate
+                ? `${fmtShort(item.date)} ${item.startTime} → ${fmtShort(item.endDate)} ${item.endTime ?? ''}`.trim()
+                : item.startTime;
+              return (
+                <div
+                  key={`${item.taskId}-${item.date}`}
+                  className={`task-row multiday-row${item.done ? ' done' : ''}`}
+                  style={{ borderLeft: `3px solid ${color ?? EVENT_COLOR}` }}
+                  onClick={() => onToggle(item.taskId, item.date, !item.done)}
+                >
+                  <div className="task-cat-bar" style={{ background: color ?? EVENT_COLOR, opacity: 0.7 }} />
+                  <div className={`task-check${item.done ? ' checked' : ''}`}>
+                    <Check size={11} strokeWidth={3} color="white" />
+                  </div>
+                  <div className="task-info">
+                    <div className={`task-name${item.done ? ' done' : ''}`}>{item.title}</div>
+                    <div className="task-meta" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {isStart ? dateLabel : isEnd ? `→ até ${fmtShort(item.endDate!)} ${item.endTime ?? ''}`.trim() : '· continua'}
+                      <span style={{ color: color ?? EVENT_COLOR, fontWeight: 600, marginLeft: 4 }}>
+                        · {isStart ? 'início' : isEnd ? 'fim' : 'continua'}
+                      </span>
+                    </div>
+                  </div>
+                  <ArrowRight size={13} strokeWidth={2} color={color ?? EVENT_COLOR} style={{ opacity: 0.7, flexShrink: 0 }} />
+                </div>
+              );
+            }
+            return (
+              <div
+                key={`${item.taskId}-${item.date}`}
+                className={`task-row${item.done ? ' done' : ''}`}
+                onClick={() => onToggle(item.taskId, item.date, !item.done)}
+              >
+                {(item.category || item.type === 'SCHEDULED') && (
+                  <div className="task-cat-bar" style={{ background: color }} />
+                )}
+                <div className={`task-check${item.done ? ' checked' : ''}`}>
+                  <Check size={11} strokeWidth={3} color="white" />
+                </div>
+                <div className="task-info">
+                  <div className={`task-name${item.done ? ' done' : ''}`}>{item.title}</div>
+                  <div className="task-meta">
+                    {item.startTime}{item.endTime ? ` – ${item.endTime}` : ''}
+                    {item.category ? (
+                      <span style={{ color: item.category.color, fontWeight: 600, marginLeft: 5 }}>· {item.category.name}</span>
+                    ) : item.type === 'SCHEDULED' ? (
+                      <span style={{ color: EVENT_COLOR, fontWeight: 600, marginLeft: 5 }}>· Evento</span>
+                    ) : null}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {dayOccurrences.length > 0 && (
             <div className="card-ghost" style={{ marginTop: 4 }}>

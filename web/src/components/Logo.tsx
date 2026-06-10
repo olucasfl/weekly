@@ -2,7 +2,7 @@ type LogoMarkProps = {
   size?: number;
 };
 
-/** Ícone SVG da marca Rotina — grade semanal com check */
+/** Ícone SVG da marca Weekly — grade semanal com check */
 export function LogoMark({ size = 32 }: LogoMarkProps) {
   return (
     <svg
@@ -11,7 +11,7 @@ export function LogoMark({ size = 32 }: LogoMarkProps) {
       viewBox="0 0 40 40"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
-      aria-label="Rotina"
+      aria-label="Weekly"
     >
       {/* Dot grid — 7 colunas representando dias da semana */}
       {[0, 1, 2, 3, 4, 5, 6].map((col) => (
@@ -57,7 +57,7 @@ type LogoWordmarkProps = {
   color?: string;
 };
 
-/** Wordmark "Rotina" com tipografia personalizada */
+/** Wordmark "Weekly" com tipografia personalizada */
 export function LogoWordmark({ size = 'md', color = 'var(--text-primary)' }: LogoWordmarkProps) {
   const sizes = { sm: '1rem', md: '1.35rem', lg: '1.8rem' };
   return (
@@ -69,7 +69,7 @@ export function LogoWordmark({ size = 'md', color = 'var(--text-primary)' }: Log
       color,
       lineHeight: 1,
     }}>
-      Rotina
+      Weekly
     </span>
   );
 }

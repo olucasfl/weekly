@@ -12,7 +12,11 @@ const envSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   VAPID_PUBLIC_KEY: z.string().default(''),
   VAPID_PRIVATE_KEY: z.string().default(''),
-  VAPID_EMAIL: z.string().default('mailto:dev@rotina.app'),
+  VAPID_EMAIL: z.string().default('mailto:dev@weekly.app'),
+  BREVO_API_KEY: z.string().default(''),
+  BREVO_SENDER_EMAIL: z.string().default(''),
+  BREVO_SENDER_NAME: z.string().default('Weekly'),
+  APP_URL: z.string().default('http://localhost:5173'),
 });
 
 export const env = envSchema.parse(process.env);

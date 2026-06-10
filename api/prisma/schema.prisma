@@ -12,6 +12,10 @@ model User {
   name              String
   email             String             @unique
   password          String
+  emailVerified     Boolean            @default(false)
+  verificationToken String?            @unique
+  resetToken        String?            @unique
+  resetTokenExpiry  DateTime?
   createdAt         DateTime           @default(now())
   updatedAt         DateTime           @updatedAt
   categories        Category[]
@@ -50,6 +54,7 @@ model Task {
   categoryId      String?
   category        Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   recurrenceType  String       @default("weekly")
+  endDate         String?
   biweeklyAnchor  String?
   monthlyDay      Int?
   monthlyWeekday  Int?

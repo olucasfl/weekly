@@ -18,6 +18,7 @@ export const weekRoutes: FastifyPluginAsync = async (app) => {
         type: task.type as 'RECURRING' | 'SCHEDULED',
         weekdays: task.weekdays,
         date: task.date ?? undefined,
+        endDate: task.endDate ?? undefined,
         startTime: task.startTime,
         endTime: task.endTime ?? undefined,
         reminder: task.reminder,

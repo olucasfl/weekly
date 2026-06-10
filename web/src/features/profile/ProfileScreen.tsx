@@ -150,8 +150,8 @@ export function ProfileScreen() {
               <LogoMark size={22} />
             </div>
             <div>
-              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Rotina</div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Weekly Planner</div>
+              <div style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary)' }}>Weekly</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Planejador Semanal</div>
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

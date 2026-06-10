@@ -4,6 +4,7 @@ export type TaskLike = {
   type: 'RECURRING' | 'SCHEDULED';
   weekdays: number[];
   date?: string;
+  endDate?: string | null;
   startTime: string;
   endTime?: string;
   reminder?: boolean;
@@ -18,6 +19,13 @@ export type TaskLike = {
   monthlyWeek?: number | null;
 };
 
+export type OccurrenceItem = {
+  task: TaskLike;
+  date: string;
+  isMultiDay?: boolean;
+  multiDayPos?: 'start' | 'middle' | 'end';
+};
+
 function mondayOfDate(dateStr: string): Date {
   const d = new Date(dateStr + 'T12:00:00');
   const day = d.getDay();
@@ -25,18 +33,34 @@ function mondayOfDate(dateStr: string): Date {
   return d;
 }
 
-export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string) {
+export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): OccurrenceItem[] {
   const start = new Date(weekStart + 'T00:00:00');
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
 
-  const occurrences: Array<{ task: TaskLike; date: string }> = [];
+  const occurrences: OccurrenceItem[] = [];
 
   for (const task of tasks.filter((t) => t.active !== false)) {
     if (task.type === 'SCHEDULED' && task.date) {
-      const d = new Date(task.date + 'T00:00:00');
-      if (d >= start && d <= end) {
-        occurrences.push({ task, date: task.date });
+      if (task.endDate) {
+        // Multi-day event: one occurrence per day in the span that falls within the week
+        const eventStart = new Date(task.date + 'T00:00:00');
+        const eventEnd = new Date(task.endDate + 'T00:00:00');
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          if (d >= eventStart && d <= eventEnd) {
+            const dateStr = d.toISOString().slice(0, 10);
+            let multiDayPos: 'start' | 'middle' | 'end';
+            if (dateStr === task.date) multiDayPos = 'start';
+            else if (dateStr === task.endDate) multiDayPos = 'end';
+            else multiDayPos = 'middle';
+            occurrences.push({ task, date: dateStr, isMultiDay: true, multiDayPos });
+          }
+        }
+      } else {
+        const d = new Date(task.date + 'T00:00:00');
+        if (d >= start && d <= end) {
+          occurrences.push({ task, date: task.date });
+        }
       }
       continue;
     }

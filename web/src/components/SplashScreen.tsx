@@ -220,19 +220,19 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
         }}>
           <img
             src="/weekly-512.png"
-            alt="Rotina"
+            alt="Weekly"
             style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
           />
         </div>
 
-        {/* "Rotina" com letras entrando */}
+        {/* "Weekly" com letras entrando */}
         <div style={{
           display: 'flex', gap: 0, marginTop: 22,
           fontFamily: 'DM Sans, sans-serif',
           fontSize: '2.6rem', fontWeight: 800,
           letterSpacing: '-0.045em', color: 'white',
         }}>
-          {'Rotina'.split('').map((ch, i) => (
+          {'Weekly'.split('').map((ch, i) => (
             <span key={i} style={{
               display: 'inline-block',
               animation: `letterIn 0.45s ${0.52 + i * 0.065}s cubic-bezier(0.22,1,0.36,1) both`,

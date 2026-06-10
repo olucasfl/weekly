@@ -2,7 +2,10 @@ import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useAuthStore } from './store/auth';
-import { AuthScreen }    from './features/auth/AuthScreen';
+import { AuthScreen }          from './features/auth/AuthScreen';
+import { VerifyEmailScreen }    from './features/auth/VerifyEmailScreen';
+import { ForgotPasswordScreen } from './features/auth/ForgotPasswordScreen';
+import { ResetPasswordScreen }  from './features/auth/ResetPasswordScreen';
 import { WeekScreen }    from './features/week/WeekScreen';
 import { TasksScreen }   from './features/tasks/TasksScreen';
 import { EventsScreen }  from './features/events/EventsScreen';
@@ -24,7 +27,10 @@ export default function App() {
       <OfflineBanner />
       {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
       <Routes>
-        <Route path="/auth" element={<AuthScreen />} />
+        <Route path="/auth"            element={<AuthScreen />} />
+        <Route path="/verificar-email" element={<VerifyEmailScreen />} />
+        <Route path="/esqueci-senha"   element={<ForgotPasswordScreen />} />
+        <Route path="/redefinir-senha" element={<ResetPasswordScreen />} />
         <Route path="/"          element={<ProtectedRoute><WeekScreen /></ProtectedRoute>} />
         <Route path="/afazeres"  element={<ProtectedRoute><TasksScreen /></ProtectedRoute>} />
         <Route path="/eventos"   element={<ProtectedRoute><EventsScreen /></ProtectedRoute>} />

@@ -398,7 +398,7 @@ export function TasksScreen() {
         <div className="row-between">
           <div>
             <div className="screen-title">Afazeres</div>
-            <div className="screen-subtitle">Tarefas recorrentes da sua rotina</div>
+            <div className="screen-subtitle">Tarefas que se repetem na semana</div>
           </div>
           <button
             className="btn btn-primary"

@@ -8,7 +8,10 @@ const GRID_END = 23;
 const HOURS = Array.from({ length: GRID_END - GRID_START + 1 }, (_, i) => GRID_START + i);
 const TOTAL_H = HOURS.length * HOUR_H;
 const DAY_ABBR = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-const STRIP_W = 9; // width (px) of each peeking strip on the right
+const STRIP_W = 9;
+// Must match CSS: tgrid-corner width + tgrid-day-col width
+const CORNER_W = 44;
+const COL_W = 68;
 
 type Occurrence = {
   taskId: string;
@@ -19,6 +22,9 @@ type Occurrence = {
   done: boolean;
   type?: string;
   category?: { id: string; name: string; color: string } | null;
+  isMultiDay?: boolean;
+  multiDayPos?: 'start' | 'middle' | 'end' | null;
+  endDate?: string | null;
 };
 
 interface Props {
@@ -39,7 +45,6 @@ function overlaps(a: Occurrence, b: Occurrence) {
   return toMin(a.startTime) < endMin(b) && endMin(a) > toMin(b.startTime);
 }
 
-// Group occurrences into overlapping clusters
 function clusterOccs(occs: Occurrence[]): Occurrence[][] {
   const sorted = [...occs].sort((a, b) => toMin(a.startTime) - toMin(b.startTime));
   const clusters: Occurrence[][] = [];
@@ -51,10 +56,52 @@ function clusterOccs(occs: Occurrence[]): Occurrence[][] {
   return clusters;
 }
 
+// Group multi-day occurrences by taskId and compute their week column span
+type MultiDayBand = {
+  taskId: string;
+  title: string;
+  color: string;
+  colStart: number; // 0-6 index into weekDays
+  colEnd: number;
+  startTime: string;
+  endTime?: string | null;
+  endDate?: string | null;
+  done: boolean;
+};
+
+function buildMultiDayBands(occs: Occurrence[], weekDayISOs: string[]): MultiDayBand[] {
+  const byTask = new Map<string, Occurrence[]>();
+  for (const o of occs) {
+    if (!o.isMultiDay) continue;
+    const arr = byTask.get(o.taskId) ?? [];
+    arr.push(o);
+    byTask.set(o.taskId, arr);
+  }
+  const bands: MultiDayBand[] = [];
+  for (const [taskId, group] of byTask) {
+    const dates = group.map((o) => o.date).sort();
+    const colStart = weekDayISOs.indexOf(dates[0]);
+    const colEnd = weekDayISOs.indexOf(dates[dates.length - 1]);
+    if (colStart === -1 || colEnd === -1) continue;
+    const rep = group[0];
+    bands.push({
+      taskId,
+      title: rep.title,
+      color: rep.category?.color ?? EVENT_COLOR,
+      colStart,
+      colEnd,
+      startTime: rep.startTime,
+      endTime: rep.endTime,
+      endDate: rep.endDate,
+      done: group.every((o) => o.done),
+    });
+  }
+  return bands;
+}
+
 export function TimeGridView({ occurrences, weekDays, today, filterCatId, onToggle }: Props) {
   const todayISO = localISO(today);
   const wrapperRef = useRef<HTMLDivElement>(null);
-  // topKey: which task is brought to front within its cluster
   const [topKey, setTopKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -69,8 +116,13 @@ export function TimeGridView({ occurrences, weekDays, today, filterCatId, onTogg
     ? occurrences.filter((o) => o.category?.id === filterCatId)
     : occurrences;
 
+  const weekDayISOs = weekDays.map((d) => localISO(d));
+  const multiDayBands = buildMultiDayBands(filtered, weekDayISOs);
+  const regularOccs = filtered.filter((o) => !o.isMultiDay);
+
   return (
     <div className="tgrid-wrapper" ref={wrapperRef}>
+      {/* ─── Day headers ─────────────────────────────────────────── */}
       <div className="tgrid-header">
         <div className="tgrid-corner" />
         {weekDays.map((d) => {
@@ -85,6 +137,42 @@ export function TimeGridView({ occurrences, weekDays, today, filterCatId, onTogg
         })}
       </div>
 
+      {/* ─── All-day / multi-day banner ──────────────────────────── */}
+      {multiDayBands.length > 0 && (
+        <div className="tgrid-allday">
+          <div className="tgrid-allday-label">todo dia</div>
+          <div
+            className="tgrid-allday-grid"
+            style={{ position: 'relative', height: multiDayBands.length * 28 + 8 }}
+          >
+            {multiDayBands.map((band, i) => {
+              const left = band.colStart * COL_W + 2;
+              const width = (band.colEnd - band.colStart + 1) * COL_W - 4;
+              const timeLabel = band.endDate
+                ? `${band.startTime} → ${band.endTime || ''}`
+                : band.startTime;
+              return (
+                <div
+                  key={band.taskId}
+                  className={`tgrid-allday-band${band.done ? ' done' : ''}`}
+                  style={{
+                    background: band.color,
+                    left,
+                    width,
+                    top: 4 + i * 28,
+                  }}
+                  title={`${band.title} · ${timeLabel}`}
+                >
+                  <span className="tgrid-allday-band-title">{band.title}</span>
+                  <span className="tgrid-allday-band-time">{timeLabel}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ─── Time grid body ──────────────────────────────────────── */}
       <div className="tgrid-body">
         <div className="tgrid-time-col">
           {HOURS.map((h) => (
@@ -97,7 +185,7 @@ export function TimeGridView({ occurrences, weekDays, today, filterCatId, onTogg
         {weekDays.map((d) => {
           const iso = localISO(d);
           const isToday = iso === todayISO;
-          const dayOccs = filtered.filter((o) => o.date === iso);
+          const dayOccs = regularOccs.filter((o) => o.date === iso);
           const clusters = clusterOccs(dayOccs);
 
           return (
@@ -108,12 +196,9 @@ export function TimeGridView({ occurrences, weekDays, today, filterCatId, onTogg
 
               {clusters.map((cluster) => {
                 const N = cluster.length;
-
-                // Determine which is the "front" task for this cluster
                 const frontOcc = N > 1 && topKey && cluster.find((o) => occKey(o) === topKey)
                   ? cluster.find((o) => occKey(o) === topKey)!
                   : cluster[0];
-
                 const strips = cluster.filter((o) => o !== frontOcc);
 
                 return cluster.map((occ) => {
@@ -124,7 +209,6 @@ export function TimeGridView({ occurrences, weekDays, today, filterCatId, onTogg
                   const bg = occ.category?.color ?? (occ.type === 'SCHEDULED' ? EVENT_COLOR : 'var(--brand)');
 
                   if (isFront) {
-                    // Front task: occupies the left portion, strips peek on the right
                     const rightMargin = 2 + (N - 1) * STRIP_W;
                     return (
                       <div
@@ -141,7 +225,6 @@ export function TimeGridView({ occurrences, weekDays, today, filterCatId, onTogg
                       </div>
                     );
                   } else {
-                    // Strip: colored sliver on the right, always visible + clickable
                     const stripIdx = strips.indexOf(occ);
                     return (
                       <div

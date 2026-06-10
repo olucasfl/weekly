@@ -24,8 +24,8 @@ export default defineConfig({
         ],
       },
       manifest: {
-        name: 'Rotina Weekly Planner',
-        short_name: 'Rotina',
+        name: 'Weekly — Planejador Semanal',
+        short_name: 'Weekly',
         description: 'Planejamento semanal com estilo Claude',
         theme_color: '#f8f2ff',
         background_color: '#fffdf8',

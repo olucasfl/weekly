@@ -48,7 +48,7 @@ export function startNotificationJob() {
         if (subs.length === 0) continue;
 
         const payload = JSON.stringify({
-          title: 'Rotina — lembrete',
+          title: 'Weekly — lembrete',
           body: `${task.title} às ${task.startTime}`,
         });
 

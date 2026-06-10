@@ -7,6 +7,7 @@ export type TaskRecord = {
   type: 'RECURRING' | 'SCHEDULED';
   weekdays: number[];
   date?: string;
+  endDate?: string | null;
   startTime: string;
   endTime?: string;
   reminder: boolean;
@@ -36,6 +37,7 @@ export async function createTask(userId: string, input: Omit<TaskRecord, 'id' | 
       type: input.type,
       weekdays: input.weekdays ?? [],
       date: input.date ?? null,
+      endDate: input.endDate ?? null,
       startTime: input.startTime,
       endTime: input.endTime ?? null,
       reminder: input.reminder,
@@ -62,6 +64,7 @@ export async function updateTask(userId: string, id: string, input: Partial<Task
       type: input.type,
       weekdays: input.weekdays,
       date: input.date ?? null,
+      endDate: input.endDate ?? null,
       startTime: input.startTime,
       endTime: input.endTime ?? null,
       reminder: input.reminder,

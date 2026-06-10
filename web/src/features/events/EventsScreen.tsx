@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Bell, CalendarDays, Search } from 'lucide-react';
+import { Plus, Bell, CalendarDays, Search, ArrowRight } from 'lucide-react';
 import { api } from '../../lib/api';
 import { BottomNav } from '../../components/BottomNav';
 import { TaskRowSkeleton } from '../../components/Skeleton';
@@ -9,6 +9,7 @@ type Event = {
   id: string;
   title: string;
   date?: string | null;
+  endDate?: string | null;
   startTime: string;
   endTime?: string | null;
   reminder: boolean;
@@ -25,21 +26,46 @@ function formatDate(iso: string) {
   return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+function formatShort(iso: string) {
+  const d = new Date(iso + 'T12:00:00');
+  return `${d.getDate()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 function todayISO() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-type FormData = { title: string; date: string; startTime: string; endTime: string; reminder: boolean; reminderMin: number };
-const EMPTY: FormData = { title: '', date: todayISO(), startTime: '09:00', endTime: '', reminder: true, reminderMin: 60 };
+type FormData = {
+  title: string;
+  date: string;
+  endDate: string;
+  startTime: string;
+  endTime: string;
+  reminder: boolean;
+  reminderMin: number;
+};
+const EMPTY: FormData = { title: '', date: todayISO(), endDate: '', startTime: '09:00', endTime: '', reminder: true, reminderMin: 60 };
 
 function EventModal({ event, onClose }: { event: Event | null; onClose: () => void }) {
   const qc = useQueryClient();
   const isEdit = !!event;
   const [form, setForm] = useState<FormData>(
-    event ? { title: event.title, date: event.date ?? todayISO(), startTime: event.startTime, endTime: event.endTime ?? '', reminder: event.reminder, reminderMin: event.reminderMin } : EMPTY,
+    event
+      ? {
+          title: event.title,
+          date: event.date ?? todayISO(),
+          endDate: event.endDate ?? '',
+          startTime: event.startTime,
+          endTime: event.endTime ?? '',
+          reminder: event.reminder,
+          reminderMin: event.reminderMin,
+        }
+      : EMPTY,
   );
   const [error, setError] = useState('');
+
+  const isMultiDay = form.endDate.length > 0;
 
   const upsert = useMutation({
     mutationFn: (d: Record<string, unknown>) =>
@@ -55,9 +81,21 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
 
   function submit() {
     if (!form.title.trim()) { setError('Informe o título'); return; }
-    if (!form.date) { setError('Informe a data'); return; }
+    if (!form.date) { setError('Informe a data de início'); return; }
+    if (isMultiDay && form.endDate <= form.date) { setError('Data de fim deve ser após a data de início'); return; }
     setError('');
-    upsert.mutate({ title: form.title.trim(), type: 'SCHEDULED', weekdays: [], date: form.date, startTime: form.startTime, endTime: form.endTime || undefined, reminder: form.reminder, reminderMin: form.reminderMin, active: true });
+    upsert.mutate({
+      title: form.title.trim(),
+      type: 'SCHEDULED',
+      weekdays: [],
+      date: form.date,
+      endDate: isMultiDay ? form.endDate : undefined,
+      startTime: form.startTime,
+      endTime: form.endTime || undefined,
+      reminder: form.reminder,
+      reminderMin: form.reminderMin,
+      active: true,
+    });
   }
 
   return (
@@ -71,20 +109,49 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
             <label className="label">Título</label>
             <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex: Reunião com cliente" autoFocus />
           </div>
-          <div className="field">
-            <label className="label">Data</label>
-            <input className="input" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+
+          {/* Date range */}
+          <div style={{ display: 'grid', gridTemplateColumns: isMultiDay ? '1fr 1fr' : '1fr', gap: 12 }}>
+            <div className="field">
+              <label className="label">{isMultiDay ? 'Data início' : 'Data'}</label>
+              <input className="input" type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+            </div>
+            {isMultiDay && (
+              <div className="field">
+                <label className="label">Data fim</label>
+                <input className="input" type="date" value={form.endDate} onChange={(e) => setForm({ ...form, endDate: e.target.value })} min={form.date} />
+              </div>
+            )}
           </div>
+
+          {/* Toggle multi-day */}
+          <div className="toggle-row" style={{ paddingTop: 0 }}>
+            <div>
+              <div className="toggle-label">Evento de múltiplos dias</div>
+              <div className="toggle-desc">Dura mais de um dia</div>
+            </div>
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={isMultiDay}
+                onChange={(e) => setForm({ ...form, endDate: e.target.checked ? form.date : '' })}
+              />
+              <div className="toggle-track" />
+            </label>
+          </div>
+
+          {/* Times */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div className="field">
-              <label className="label">Início</label>
+              <label className="label">{isMultiDay ? 'Hora início' : 'Início'}</label>
               <input className="input" type="time" value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} />
             </div>
             <div className="field">
-              <label className="label">Fim (opcional)</label>
+              <label className="label">{isMultiDay ? 'Hora fim' : 'Fim (opcional)'}</label>
               <input className="input" type="time" value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} />
             </div>
           </div>
+
           <div>
             <div className="toggle-row">
               <div>
@@ -135,9 +202,20 @@ export function EventsScreen() {
   const today = todayISO();
   const q = search.trim().toLowerCase();
   const filtered = q ? events.filter((e) => e.title.toLowerCase().includes(q)) : events;
-  const todayEvents = filtered.filter((e) => e.date === today).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const todayEvents = filtered.filter((e) => {
+    if (!e.date) return false;
+    if (e.endDate) return e.date <= today && e.endDate >= today;
+    return e.date === today;
+  }).sort((a, b) => a.startTime.localeCompare(b.startTime));
   const upcoming = filtered.filter((e) => (e.date ?? '') > today).sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.startTime.localeCompare(b.startTime));
-  const past = filtered.filter((e) => (e.date ?? '') < today).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+  const past = filtered.filter((e) => (e.endDate ? e.endDate : e.date ?? '') < today).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+
+  function dateRangeLabel(ev: Event) {
+    if (ev.endDate) {
+      return `${formatShort(ev.date!)} ${ev.startTime} → ${formatShort(ev.endDate)} ${ev.endTime || ''}`.trim();
+    }
+    return `${ev.startTime}${ev.endTime ? ` – ${ev.endTime}` : ''}`;
+  }
 
   return (
     <>
@@ -197,8 +275,9 @@ export function EventsScreen() {
                 <div className="task-info">
                   <div className="task-name">{ev.title}</div>
                   <div className="task-meta">
-                    {ev.startTime}{ev.endTime ? ` – ${ev.endTime}` : ''}
-                    <span style={{ color: EVENT_COLOR, fontWeight: 600, marginLeft: 5 }}>· Hoje</span>
+                    {dateRangeLabel(ev)}
+                    {ev.endDate && <ArrowRight size={10} style={{ display: 'inline', marginLeft: 2, verticalAlign: 'middle' }} />}
+                    <span style={{ color: EVENT_COLOR, fontWeight: 600, marginLeft: 5 }}>· {ev.endDate ? 'Multi-dia' : 'Hoje'}</span>
                   </div>
                 </div>
                 {ev.reminder && <Bell size={14} strokeWidth={1.8} color={EVENT_COLOR} />}
@@ -225,8 +304,8 @@ export function EventsScreen() {
                 <div className="task-info">
                   <div className="task-name">{ev.title}</div>
                   <div className="task-meta">
-                    {ev.startTime}{ev.endTime ? ` – ${ev.endTime}` : ''}
-                    <span style={{ color: EVENT_COLOR, fontWeight: 600, marginLeft: 5 }}>· Evento</span>
+                    {dateRangeLabel(ev)}
+                    <span style={{ color: EVENT_COLOR, fontWeight: 600, marginLeft: 5 }}>· {ev.endDate ? 'Multi-dia' : 'Evento'}</span>
                   </div>
                 </div>
                 {ev.reminder && <Bell size={14} strokeWidth={1.8} color="var(--text-muted)" />}
@@ -253,7 +332,7 @@ export function EventsScreen() {
                 <div className="task-info">
                   <div className="task-name done">{ev.title}</div>
                   <div className="task-meta">
-                    {ev.date ? formatDate(ev.date) : ''} · {ev.startTime}
+                    {ev.date ? formatDate(ev.date) : ''}{ev.endDate ? ` → ${formatDate(ev.endDate)}` : ''} · {ev.startTime}
                     <span style={{ color: EVENT_COLOR, fontWeight: 600, marginLeft: 5, opacity: 0.6 }}>· Evento</span>
                   </div>
                 </div>
