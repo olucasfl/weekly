@@ -10,6 +10,13 @@ import './index.css';
 
 initTheme();
 
+// Recarrega automaticamente quando um novo service worker ativa
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  });
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
