@@ -7,6 +7,7 @@ const taskInputSchema = z.object({
   type: z.enum(['RECURRING', 'SCHEDULED']),
   weekdays: z.array(z.number().int().min(0).max(6)).default([]),
   date: z.string().optional(),
+  endDate: z.string().nullable().optional(),
   startTime: z.string().min(1),
   endTime: z.string().optional(),
   reminder: z.boolean().default(true),
