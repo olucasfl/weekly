@@ -4,14 +4,18 @@ import { env } from '../env.js';
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
 
-function reminderTimeFor(startTime: string, reminderMin: number): string {
-  const [h, m] = startTime.split(':').map(Number);
-  const total = h * 60 + m - reminderMin;
-  const rh = Math.floor(total / 60);
-  const rm = total % 60;
-  if (rh < 0) return '';
-  return `${pad(rh)}:${pad(rm)}`;
+function timeToMinutes(hhmm: string): number {
+  const [h, m] = hhmm.split(':').map(Number);
+  return h * 60 + m;
 }
+
+function currentTimeMinutes(): number {
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes();
+}
+
+// Tracks sent notifications to avoid duplicates within the same minute window
+const sentThisMinute = new Map<string, number>();
 
 export function startNotificationJob() {
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) {
@@ -25,9 +29,14 @@ export function startNotificationJob() {
   setInterval(async () => {
     try {
       const now = new Date();
-      const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+      const nowMin = currentTimeMinutes();
       const today = now.toISOString().slice(0, 10);
       const todayWeekday = now.getDay();
+
+      // Clean up old sent records (older than 5 minutes)
+      for (const [key, sentAt] of sentThisMinute) {
+        if (nowMin - sentAt > 5) sentThisMinute.delete(key);
+      }
 
       const tasks = await prisma.task.findMany({
         where: { active: true, reminder: true },
@@ -41,11 +50,25 @@ export function startNotificationJob() {
 
         if (!fires) continue;
 
-        const rt = reminderTimeFor(task.startTime, task.reminderMin);
-        if (rt !== currentTime) continue;
+        const startMin = timeToMinutes(task.startTime);
+        const reminderMin = startMin - task.reminderMin;
+        if (reminderMin < 0) continue;
+
+        // Match within a 2-minute window to handle drift/restart
+        const diff = nowMin - reminderMin;
+        if (diff < 0 || diff > 1) continue;
+
+        const dedupeKey = `${task.id}-${reminderMin}`;
+        if (sentThisMinute.has(dedupeKey)) continue;
+        sentThisMinute.set(dedupeKey, nowMin);
 
         const subs = task.user.pushSubscriptions;
-        if (subs.length === 0) continue;
+        if (subs.length === 0) {
+          console.log(`[push] No subscriptions for user ${task.user.id}`);
+          continue;
+        }
+
+        console.log(`[push] Sending reminder for "${task.title}" (${task.startTime}) to ${subs.length} device(s)`);
 
         const payload = JSON.stringify({
           title: 'Weekly — lembrete',
@@ -64,5 +87,5 @@ export function startNotificationJob() {
     } catch (err) {
       console.error('[push] job error:', err);
     }
-  }, 60_000);
+  }, 30_000); // Roda a cada 30s para não perder janelas
 }

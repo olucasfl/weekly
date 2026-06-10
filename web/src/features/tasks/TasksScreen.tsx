@@ -37,6 +37,7 @@ function CategoryModal({ category, onClose }: { category: Category | null; onClo
   const [name, setName] = useState(category?.name ?? '');
   const [color, setColor] = useState(category?.color ?? PRESET_COLORS[0]);
   const [error, setError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const upsert = useMutation({
     mutationFn: (data: { name: string; color: string }) =>
@@ -79,7 +80,6 @@ function CategoryModal({ category, onClose }: { category: Category | null; onClo
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ex: Trabalho, Estudo, Saúde…"
-              autoFocus
             />
           </div>
 
@@ -111,14 +111,22 @@ function CategoryModal({ category, onClose }: { category: Category | null; onClo
 
         <div className="modal-actions">
           {isEdit && (
-            <button className="btn btn-danger" onClick={() => del.mutate()} disabled={del.isPending}>
-              Apagar
+            confirmDelete ? (
+              <>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flex: 1, alignSelf: 'center' }}>Apagar mesmo?</span>
+                <button className="btn btn-ghost" onClick={() => setConfirmDelete(false)}>Não</button>
+                <button className="btn btn-danger" onClick={() => del.mutate()} disabled={del.isPending}>Sim</button>
+              </>
+            ) : (
+              <button className="btn btn-danger" onClick={() => setConfirmDelete(true)}>Apagar</button>
+            )
+          )}
+          {!confirmDelete && <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>}
+          {!confirmDelete && (
+            <button className="btn btn-primary" onClick={submit} disabled={upsert.isPending}>
+              {upsert.isPending ? 'Salvando…' : 'Salvar'}
             </button>
           )}
-          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={submit} disabled={upsert.isPending}>
-            {upsert.isPending ? 'Salvando…' : 'Salvar'}
-          </button>
         </div>
       </div>
     </div>
@@ -170,6 +178,7 @@ const EMPTY_FORM: FormData = {
 function TaskModal({ task, categories, onClose }: { task: Task | null; categories: Category[]; onClose: () => void }) {
   const qc = useQueryClient();
   const isEdit = !!task;
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [form, setForm] = useState<FormData>(
     task
@@ -249,7 +258,7 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="field">
             <label className="label">Título</label>
-            <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex: Exercitar" autoFocus />
+            <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex: Exercitar" />
           </div>
 
           <div className="field">
@@ -359,14 +368,22 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
 
         <div className="modal-actions">
           {isEdit && (
-            <button className="btn btn-danger" onClick={() => del.mutate()} disabled={del.isPending}>
-              Apagar
+            confirmDelete ? (
+              <>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flex: 1, alignSelf: 'center' }}>Apagar mesmo?</span>
+                <button className="btn btn-ghost" onClick={() => setConfirmDelete(false)}>Não</button>
+                <button className="btn btn-danger" onClick={() => del.mutate()} disabled={del.isPending}>Sim</button>
+              </>
+            ) : (
+              <button className="btn btn-danger" onClick={() => setConfirmDelete(true)}>Apagar</button>
+            )
+          )}
+          {!confirmDelete && <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>}
+          {!confirmDelete && (
+            <button className="btn btn-primary" onClick={submit} disabled={upsert.isPending}>
+              {upsert.isPending ? 'Salvando…' : 'Salvar'}
             </button>
           )}
-          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={submit} disabled={upsert.isPending}>
-            {upsert.isPending ? 'Salvando…' : 'Salvar'}
-          </button>
         </div>
       </div>
     </div>

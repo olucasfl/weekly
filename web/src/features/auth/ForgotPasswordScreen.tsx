@@ -74,7 +74,6 @@ export function ForgotPasswordScreen() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="seu@email.com"
                     required
-                    autoFocus
                   />
                 </div>
                 {error && <div className="error-msg">{error}</div>}

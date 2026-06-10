@@ -50,6 +50,7 @@ const EMPTY: FormData = { title: '', date: todayISO(), endDate: '', startTime: '
 function EventModal({ event, onClose }: { event: Event | null; onClose: () => void }) {
   const qc = useQueryClient();
   const isEdit = !!event;
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [form, setForm] = useState<FormData>(
     event
       ? {
@@ -107,7 +108,7 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="field">
             <label className="label">Título</label>
-            <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex: Reunião com cliente" autoFocus />
+            <input className="input" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="Ex: Reunião com cliente" />
           </div>
 
           {/* Date range */}
@@ -179,11 +180,23 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
         {error && <div className="error-msg" style={{ marginTop: 12 }}>{error}</div>}
 
         <div className="modal-actions">
-          {isEdit && <button className="btn btn-danger" onClick={() => del.mutate()} disabled={del.isPending}>Apagar</button>}
-          <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={submit} disabled={upsert.isPending}>
-            {upsert.isPending ? 'Salvando…' : 'Salvar'}
-          </button>
+          {isEdit && (
+            confirmDelete ? (
+              <>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flex: 1, alignSelf: 'center' }}>Apagar mesmo?</span>
+                <button className="btn btn-ghost" onClick={() => setConfirmDelete(false)}>Não</button>
+                <button className="btn btn-danger" onClick={() => del.mutate()} disabled={del.isPending}>Sim</button>
+              </>
+            ) : (
+              <button className="btn btn-danger" onClick={() => setConfirmDelete(true)}>Apagar</button>
+            )
+          )}
+          {!confirmDelete && <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>}
+          {!confirmDelete && (
+            <button className="btn btn-primary" onClick={submit} disabled={upsert.isPending}>
+              {upsert.isPending ? 'Salvando…' : 'Salvar'}
+            </button>
+          )}
         </div>
       </div>
     </div>
