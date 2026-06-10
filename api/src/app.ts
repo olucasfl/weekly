@@ -26,8 +26,20 @@ export async function buildApp() {
   await app.register(fastifyCors, { origin: env.CORS_ORIGIN.split(',') });
 
   app.decorateRequest('user', null);
+  const PUBLIC_PATHS = new Set([
+    '/auth/login',
+    '/auth/register',
+    '/auth/verify-email',
+    '/auth/resend-verification',
+    '/auth/forgot-password',
+    '/auth/reset-password',
+    '/auth/refresh',
+    '/auth/verify-email-change',
+    '/health',
+  ]);
+
   app.addHook('preHandler', async (request, reply) => {
-    if (request.url.startsWith('/auth') || request.url === '/health') {
+    if (PUBLIC_PATHS.has(request.url.split('?')[0])) {
       return;
     }
 

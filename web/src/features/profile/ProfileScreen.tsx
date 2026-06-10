@@ -140,12 +140,11 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
 
   async function sendForgotPassword() {
     if (!user?.email) return;
-    setLoading(true);
+    setLoading(true); setError('');
     try {
       await api('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email: user.email }) });
       setResetSent(true);
     } catch {
-      // silencioso — mesmo comportamento do forgot password screen
       setResetSent(true);
     } finally {
       setLoading(false);
@@ -284,7 +283,7 @@ export function ProfileScreen() {
   });
 
   const cancelEmailChangeMutation = useMutation({
-    mutationFn: () => api('/auth/cancel-email-change', { method: 'POST' }),
+    mutationFn: () => api('/auth/cancel-email-change', { method: 'POST', body: '{}' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['profile'] }),
   });
 
