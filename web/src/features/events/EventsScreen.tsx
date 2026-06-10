@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Bell, CalendarDays, Search, ArrowRight } from 'lucide-react';
+import { Plus, Bell, CalendarDays, Search, ArrowRight, X } from 'lucide-react';
 import { api } from '../../lib/api';
 import { BottomNav } from '../../components/BottomNav';
 import { TaskRowSkeleton } from '../../components/Skeleton';
@@ -103,7 +103,10 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal">
         <div className="modal-handle" />
-        <div className="modal-title">{isEdit ? 'Editar evento' : 'Novo evento'}</div>
+        <div className="modal-header">
+          <span className="modal-title">{isEdit ? 'Editar evento' : 'Novo evento'}</span>
+          <button className="modal-close" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
+        </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="field">
