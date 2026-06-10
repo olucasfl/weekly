@@ -582,11 +582,9 @@ body::before {
 
 /* ─── Category chips (tasks screen) ──────────────────────────── */
 .cat-chips-row {
-  display: flex; gap: 7px;
-  overflow-x: auto; padding: 2px 0 4px;
-  scrollbar-width: none;
+  display: flex; flex-wrap: wrap; gap: 7px;
+  padding: 2px 0 4px;
 }
-.cat-chips-row::-webkit-scrollbar { display: none; }
 
 .cat-chip {
   display: inline-flex; align-items: center; gap: 6px;

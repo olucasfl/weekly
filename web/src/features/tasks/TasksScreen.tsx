@@ -448,21 +448,29 @@ export function TasksScreen() {
       <div className="screen-body">
         {/* Categories section */}
         <div>
-          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>
-            Categorias
-          </div>
-          <div className="cat-chips-row">
-            {categories.map((cat) => (
-              <button key={cat.id} className="cat-chip" onClick={() => setCatModal({ open: true, category: cat })}>
-                <div className="cat-dot" style={{ background: cat.color }} />
-                {cat.name}
-              </button>
-            ))}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Categorias
+            </div>
             <button className="cat-chip-add" onClick={() => setCatModal({ open: true, category: null })}>
               <Plus size={11} strokeWidth={3} />
               Nova
             </button>
           </div>
+          {categories.length > 0 ? (
+            <div className="cat-chips-row">
+              {categories.map((cat) => (
+                <button key={cat.id} className="cat-chip" onClick={() => setCatModal({ open: true, category: cat })}>
+                  <div className="cat-dot" style={{ background: cat.color }} />
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', padding: '4px 0' }}>
+              Nenhuma categoria ainda.
+            </div>
+          )}
         </div>
 
         <div className="divider" style={{ margin: '2px 0' }} />

@@ -52,6 +52,32 @@ export function LogoMark({ size = 32 }: LogoMarkProps) {
   );
 }
 
+/** Versão do logo para usar inline (nav, etc) — usa currentColor */
+export function LogoMarkIcon({ size = 20 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 40 40"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-label="Weekly"
+    >
+      {[0, 1, 2, 3, 4, 5, 6].map((col) => (
+        <rect key={`top-${col}`} x={5 + col * 4.5} y={7} width={2.8} height={2.8} rx={1.4}
+          fill="currentColor" opacity={col < 5 ? 1 : 0.4} />
+      ))}
+      {[0, 1, 2, 3, 4, 5, 6].map((col) => (
+        <rect key={`mid-${col}`} x={5 + col * 4.5} y={13} width={2.8} height={2.8} rx={1.4}
+          fill="currentColor" opacity={col < 3 ? 1 : 0.4} />
+      ))}
+      <circle cx={20} cy={28} r={8} fill="currentColor" opacity={0.12} />
+      <path d="M15.5 28.2l3.2 3.2 5.8-6.4" stroke="currentColor" strokeWidth="2.2"
+        strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 type LogoWordmarkProps = {
   size?: 'sm' | 'md' | 'lg';
   color?: string;

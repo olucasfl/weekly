@@ -1,8 +1,9 @@
 import { NavLink } from 'react-router-dom';
-import { CalendarDays, CheckSquare, Calendar, BarChart2, User } from 'lucide-react';
+import { CheckSquare, Calendar, BarChart2, User } from 'lucide-react';
+import { LogoMarkIcon } from './Logo';
 
 const tabs = [
-  { to: '/', Icon: CalendarDays, label: 'Semana' },
+  { to: '/', Icon: LogoMarkIcon, label: 'Semana' },
   { to: '/afazeres', Icon: CheckSquare, label: 'Afazeres' },
   { to: '/eventos', Icon: Calendar, label: 'Eventos' },
   { to: '/progresso', Icon: BarChart2, label: 'Progresso' },
