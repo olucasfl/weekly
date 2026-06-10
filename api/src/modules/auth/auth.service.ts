@@ -43,10 +43,12 @@ export async function verifyEmail(token: string) {
     throw new Error('Link inválido ou expirado');
   }
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { emailVerified: true, verificationToken: null },
-  });
+  if (!user.emailVerified) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerified: true },
+    });
+  }
 
   return { success: true };
 }
