@@ -6,7 +6,9 @@ export type User = { id: string; name: string; email: string };
 type AuthStore = {
   user: User | null;
   token: string | null;
-  setSession: (user: User, token: string) => void;
+  refreshToken: string | null;
+  setSession: (user: User, token: string, refreshToken?: string) => void;
+  setToken: (token: string) => void;
   clearSession: () => void;
 };
 
@@ -15,8 +17,10 @@ export const useAuthStore = create<AuthStore>()(
     (set) => ({
       user: null,
       token: null,
-      setSession: (user, token) => set({ user, token }),
-      clearSession: () => set({ user: null, token: null }),
+      refreshToken: null,
+      setSession: (user, token, refreshToken) => set({ user, token, refreshToken: refreshToken ?? null }),
+      setToken: (token) => set({ token }),
+      clearSession: () => set({ user: null, token: null, refreshToken: null }),
     }),
     { name: 'rotina-auth' },
   ),

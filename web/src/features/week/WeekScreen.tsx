@@ -5,6 +5,7 @@ import { api } from '../../lib/api';
 import { localISO, mondayOf, addDays } from '../../lib/date';
 import { BottomNav } from '../../components/BottomNav';
 import { LogoFull } from '../../components/Logo';
+import { TaskRowSkeleton } from '../../components/Skeleton';
 import { TimeGridView } from './TimeGridView';
 import { MonthView } from './MonthView';
 
@@ -119,6 +120,7 @@ export function WeekScreen() {
   });
 
   function onToggle(taskId: string, date: string, done: boolean) {
+    if ('vibrate' in navigator) navigator.vibrate(30);
     toggleMutation.mutate({ taskId, date, done });
   }
 
@@ -279,7 +281,7 @@ export function WeekScreen() {
             )}
           </div>
 
-          {isLoading && <div className="spinner" />}
+          {isLoading && [0, 1, 2, 3].map((i) => <TaskRowSkeleton key={i} />)}
 
           {!isLoading && dayOccurrences.length === 0 && (
             <div className="empty-state">

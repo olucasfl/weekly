@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Bell, BellOff, CircleDot, CircleOff, CheckSquare, Check } from 'lucide-react';
+import { Plus, Bell, BellOff, CircleDot, CircleOff, CheckSquare, Check, Search } from 'lucide-react';
 import { api } from '../../lib/api';
 import { BottomNav } from '../../components/BottomNav';
+import { TaskRowSkeleton } from '../../components/Skeleton';
 
 type Category = { id: string; name: string; color: string };
 
@@ -376,6 +377,7 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
 export function TasksScreen() {
   const [taskModal, setTaskModal] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null });
   const [catModal, setCatModal] = useState<{ open: boolean; category: Category | null }>({ open: false, category: null });
+  const [search, setSearch] = useState('');
 
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ['tasks'],
@@ -386,6 +388,9 @@ export function TasksScreen() {
     queryKey: ['categories'],
     queryFn: () => api('/categories'),
   });
+
+  const q = search.trim().toLowerCase();
+  const filtered = q ? tasks.filter((t) => t.title.toLowerCase().includes(q) || t.category?.name.toLowerCase().includes(q)) : tasks;
 
   return (
     <>
@@ -416,17 +421,28 @@ export function TasksScreen() {
 
         <div className="divider" style={{ margin: '2px 0' }} />
 
-        {isLoading && <div className="spinner" />}
+        {/* Search */}
+        <div className="search-box">
+          <Search size={14} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+          <input
+            className="search-input"
+            placeholder="Buscar afazeres…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
 
-        {!isLoading && tasks.length === 0 && (
+        {isLoading && [0, 1, 2, 3].map((i) => <TaskRowSkeleton key={i} />)}
+
+        {!isLoading && filtered.length === 0 && (
           <div className="empty-state">
             <CheckSquare size={40} strokeWidth={1.2} color="var(--text-muted)" />
-            <div className="empty-label">Sem afazeres</div>
-            <div className="empty-hint">Crie tarefas recorrentes que aparecem automaticamente na semana.</div>
+            <div className="empty-label">{q ? 'Nenhum resultado' : 'Sem afazeres'}</div>
+            <div className="empty-hint">{q ? `Nenhum afazer com "${search}"` : 'Crie tarefas recorrentes que aparecem automaticamente na semana.'}</div>
           </div>
         )}
 
-        {tasks.map((task) => (
+        {filtered.map((task) => (
           <div key={task.id} className="task-row" onClick={() => setTaskModal({ open: true, task })}>
             {task.category && (
               <div className="task-cat-bar" style={{ background: task.category.color }} />

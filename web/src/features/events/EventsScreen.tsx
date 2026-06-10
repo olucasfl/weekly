@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Bell, CalendarDays } from 'lucide-react';
+import { Plus, Bell, CalendarDays, Search } from 'lucide-react';
 import { api } from '../../lib/api';
 import { BottomNav } from '../../components/BottomNav';
+import { TaskRowSkeleton } from '../../components/Skeleton';
 
 type Event = {
   id: string;
@@ -124,6 +125,7 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
 
 export function EventsScreen() {
   const [modal, setModal] = useState<{ open: boolean; event: Event | null }>({ open: false, event: null });
+  const [search, setSearch] = useState('');
 
   const { data: events = [], isLoading } = useQuery<Event[]>({
     queryKey: ['events'],
@@ -131,9 +133,11 @@ export function EventsScreen() {
   });
 
   const today = todayISO();
-  const todayEvents = events.filter((e) => e.date === today).sort((a, b) => a.startTime.localeCompare(b.startTime));
-  const upcoming = events.filter((e) => (e.date ?? '') > today).sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.startTime.localeCompare(b.startTime));
-  const past = events.filter((e) => (e.date ?? '') < today).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+  const q = search.trim().toLowerCase();
+  const filtered = q ? events.filter((e) => e.title.toLowerCase().includes(q)) : events;
+  const todayEvents = filtered.filter((e) => e.date === today).sort((a, b) => a.startTime.localeCompare(b.startTime));
+  const upcoming = filtered.filter((e) => (e.date ?? '') > today).sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.startTime.localeCompare(b.startTime));
+  const past = filtered.filter((e) => (e.date ?? '') < today).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
 
   return (
     <>
@@ -143,13 +147,24 @@ export function EventsScreen() {
       </div>
 
       <div className="screen-body">
-        {isLoading && <div className="spinner" />}
+        {/* Search */}
+        <div className="search-box">
+          <Search size={14} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+          <input
+            className="search-input"
+            placeholder="Buscar eventos…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
 
-        {!isLoading && events.length === 0 && (
+        {isLoading && [0, 1, 2].map((i) => <TaskRowSkeleton key={i} />)}
+
+        {!isLoading && filtered.length === 0 && (
           <div className="empty-state">
             <CalendarDays size={40} strokeWidth={1.2} color="var(--text-muted)" />
             <div className="empty-label">Sem eventos</div>
-            <div className="empty-hint">Agende compromissos que aparecem na semana quando a data chegar.</div>
+            <div className="empty-hint">{q ? `Nenhum evento com "${search}"` : 'Agende compromissos que aparecem na semana quando a data chegar.'}</div>
           </div>
         )}
 

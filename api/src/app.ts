@@ -12,7 +12,6 @@ import { categoriesRoutes } from './modules/categories/categories.routes.js';
 import { tasksRoutes } from './modules/tasks/tasks.routes.js';
 import { weekRoutes } from './modules/week/week.routes.js';
 import { completionsRoutes } from './modules/completions/completions.routes.js';
-import { goalsRoutes } from './modules/goals/goals.routes.js';
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes.js';
 import { pushRoutes } from './modules/push/push.routes.js';
 import { notesRoutes } from './modules/notes/notes.routes.js';
@@ -59,7 +58,6 @@ export async function buildApp() {
   await app.register(tasksRoutes, { prefix: '/tasks' });
   await app.register(weekRoutes, { prefix: '/week' });
   await app.register(completionsRoutes, { prefix: '/completions' });
-  await app.register(goalsRoutes, { prefix: '/goals' });
   await app.register(dashboardRoutes, { prefix: '/dashboard' });
   await app.register(pushRoutes, { prefix: '/push' });
   await app.register(notesRoutes, { prefix: '/notes' });

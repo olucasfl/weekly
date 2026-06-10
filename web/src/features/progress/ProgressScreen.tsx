@@ -3,6 +3,7 @@ import { Flame, TrendingUp, Clock, Target } from 'lucide-react';
 import { api } from '../../lib/api';
 import { localISO, mondayOf, addDays } from '../../lib/date';
 import { BottomNav } from '../../components/BottomNav';
+import { StatBoxSkeleton } from '../../components/Skeleton';
 
 type Dashboard = {
   weekStart: string;
@@ -61,39 +62,45 @@ export function ProgressScreen() {
       </div>
 
       <div className="screen-body">
-        {isLoading && <div className="spinner" />}
-
         {/* Stats */}
         <div className="stat-grid">
-          <div className="stat-box">
+          {isLoading ? (
+            <>
+              <StatBoxSkeleton />
+              <StatBoxSkeleton />
+              <StatBoxSkeleton />
+              <StatBoxSkeleton />
+            </>
+          ) : null}
+          {!isLoading && <div className="stat-box">
             <div className="row" style={{ gap: 6, marginBottom: 6 }}>
               <TrendingUp size={14} color="var(--brand)" strokeWidth={2} />
               <span className="text-xs text-muted">Concluído</span>
             </div>
             <div className="stat-val">{percent}%</div>
-          </div>
-          <div className="stat-box">
+          </div>}
+          {!isLoading && <div className="stat-box">
             <div className="row" style={{ gap: 6, marginBottom: 6 }}>
               <Flame size={14} color="#f97316" strokeWidth={2} />
               <span className="text-xs text-muted">Sequência</span>
             </div>
             <div className="stat-val">{dashboard?.streak ?? 0}</div>
             <div className="stat-label">semanas seguidas</div>
-          </div>
-          <div className="stat-box">
+          </div>}
+          {!isLoading && <div className="stat-box">
             <div className="row" style={{ gap: 6, marginBottom: 6 }}>
               <Target size={14} color="var(--success)" strokeWidth={2} />
               <span className="text-xs text-muted">Feitas</span>
             </div>
             <div className="stat-val" style={{ color: 'var(--success)' }}>{dashboard?.completed ?? 0}</div>
-          </div>
-          <div className="stat-box">
+          </div>}
+          {!isLoading && <div className="stat-box">
             <div className="row" style={{ gap: 6, marginBottom: 6 }}>
               <Clock size={14} color="var(--text-muted)" strokeWidth={2} />
               <span className="text-xs text-muted">Pendentes</span>
             </div>
             <div className="stat-val" style={{ color: 'var(--text-secondary)' }}>{dashboard?.pending ?? 0}</div>
-          </div>
+          </div>}
         </div>
 
         {/* Weekly progress bar */}

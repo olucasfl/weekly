@@ -8,6 +8,21 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['weekly-180.png', 'weekly-192.png', 'weekly-512.png'],
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/[^/]*\.onrender\.com\//,
+            handler: 'NetworkFirst' as const,
+            options: {
+              cacheName: 'api-cache',
+              expiration: { maxEntries: 200, maxAgeSeconds: 86400 },
+              networkTimeoutSeconds: 5,
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+        ],
+      },
       manifest: {
         name: 'Rotina Weekly Planner',
         short_name: 'Rotina',

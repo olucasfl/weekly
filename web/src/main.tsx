@@ -22,6 +22,8 @@ configureApi(
     useAuthStore.getState().clearSession();
     queryClient.clear();
   },
+  () => useAuthStore.getState().refreshToken,
+  (token) => useAuthStore.getState().setToken(token),
 );
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

@@ -28,11 +28,11 @@ export function AuthScreen() {
           body: JSON.stringify({ name, email, password }),
         });
       }
-      const result = await api<{ user: User; accessToken: string }>('/auth/login', {
+      const result = await api<{ user: User; accessToken: string; refreshToken: string }>('/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
-      setSession(result.user, result.accessToken);
+      setSession(result.user, result.accessToken, result.refreshToken);
       navigate('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro inesperado');
@@ -129,7 +129,7 @@ export function AuthScreen() {
         </div>
 
         <p style={{ textAlign: 'center', fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: 20 }}>
-          Seus dados ficam apenas neste dispositivo
+          Seus dados são sincronizados com segurança na nuvem
         </p>
       </div>
     </div>
