@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String             @id @default(cuid())
+  name              String
+  email             String             @unique
+  password          String
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  categories        Category[]
+  tasks             Task[]
+  goals             Goal[]
+  completions       Completion[]
+  pushSubscriptions PushSubscription[]
+  notes             Note[]
+}
+
+model Category {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name   String
+  color  String
+  tasks  Task[]
+  goals  Goal[]
+
+  @@index([userId])
+}
+
+model Task {
+  id              String       @id @default(cuid())
+  userId          String
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String
+  type            String
+  weekdays        Int[]
+  date            String?
+  startTime       String
+  endTime         String?
+  reminder        Boolean      @default(true)
+  reminderMin     Int          @default(60)
+  active          Boolean      @default(true)
+  categoryId      String?
+  category        Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  recurrenceType  String       @default("weekly")
+  biweeklyAnchor  String?
+  monthlyDay      Int?
+  monthlyWeekday  Int?
+  monthlyWeek     Int?
+  completions     Completion[]
+
+  @@index([userId, type])
+}
+
+model Completion {
+  id        String  @id @default(cuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId    String
+  task      Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  date      String
+  done      Boolean @default(false)
+  skipped   Boolean @default(false)
+
+  @@unique([userId, taskId, date])
+  @@index([userId, date])
+}
+
+model Goal {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  target     Int
+  period     String    @default("week")
+  kind       String    @default("count")
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String
+  content   String   @default("")
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId])
+}
