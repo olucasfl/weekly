@@ -36,9 +36,18 @@ interface Props {
 }
 
 function toMin(t: string) { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
-function endMin(o: Occurrence) { return o.endTime ? toMin(o.endTime) : toMin(o.startTime) + 60; }
+function endMin(o: Occurrence) {
+  if (!o.endTime) return toMin(o.startTime) + 60;
+  const em = toMin(o.endTime);
+  const sm = toMin(o.startTime);
+  return em < sm ? em + 24 * 60 : em; // cruza meia-noite
+}
 function timeToY(t: string) { const [h, m] = t.split(':').map(Number); return (h - GRID_START + m / 60) * HOUR_H; }
-function taskHeight(o: Occurrence) { return Math.max((endMin(o) - toMin(o.startTime)) * (HOUR_H / 60), 28); }
+function taskHeight(o: Occurrence) {
+  const start = toMin(o.startTime);
+  const end = Math.min(endMin(o), (GRID_END + 1) * 60); // limita na borda inferior da grade
+  return Math.max((end - start) * (HOUR_H / 60), 28);
+}
 function occKey(o: Occurrence) { return `${o.taskId}-${o.date}`; }
 
 function overlaps(a: Occurrence, b: Occurrence) {
