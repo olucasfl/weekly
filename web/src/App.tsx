@@ -23,12 +23,14 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
-  const [showSplash, setShowSplash] = useState(() => isPWA());
+  const [showSplash, setShowSplash] = useState(() =>
+    isPWA() && !sessionStorage.getItem('splashShown')
+  );
 
   return (
     <div className="app-shell">
       <OfflineBanner />
-      {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
+      {showSplash && <SplashScreen onDone={() => { sessionStorage.setItem('splashShown', '1'); setShowSplash(false); }} />}
       <PullToRefresh>
       <Routes>
         <Route path="/auth"            element={<AuthScreen />} />
