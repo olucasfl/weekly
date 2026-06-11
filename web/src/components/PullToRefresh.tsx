@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import { RotateCw } from 'lucide-react';
 
 const THRESHOLD = 72;
@@ -17,8 +16,6 @@ function scrollableParentTop(target: EventTarget | null): number {
 }
 
 export function PullToRefresh({ children }: { children: React.ReactNode }) {
-  const qc = useQueryClient();
-
   const [displayY,   setDisplayY]   = useState(0);
   const [refreshing, setRefreshing] = useState(false);
   const [animate,    setAnimate]    = useState(false);
@@ -63,13 +60,8 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
         setAnimate(true);
         setRefreshing(true);
         setDisplayY(Math.round(THRESHOLD * 0.75));
-        qc.invalidateQueries().finally(() => {
-          setTimeout(() => {
-            setRefreshing(false);
-            setDisplayY(0);
-            setTimeout(() => { refreshingRef.current = false; setAnimate(false); }, 350);
-          }, 700);
-        });
+        // Aguarda o spinner aparecer antes de recarregar
+        setTimeout(() => window.location.reload(), 400);
       } else {
         setAnimate(true);
         setDisplayY(0);
@@ -87,7 +79,7 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
       document.removeEventListener('touchend',    onEnd);
       document.removeEventListener('touchcancel', onEnd);
     };
-  }, [qc]);
+  }, []);
 
   const translateY = displayY - INDICATOR - 6;
   const progress   = Math.min(displayY / THRESHOLD, 1);
