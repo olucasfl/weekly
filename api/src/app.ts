@@ -15,6 +15,7 @@ import { completionsRoutes } from './modules/completions/completions.routes.js';
 import { dashboardRoutes } from './modules/dashboard/dashboard.routes.js';
 import { pushRoutes } from './modules/push/push.routes.js';
 import { notesRoutes } from './modules/notes/notes.routes.js';
+import { goalsRoutes } from './modules/goals/goals.routes.js';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -72,7 +73,8 @@ export async function buildApp() {
   await app.register(completionsRoutes, { prefix: '/completions' });
   await app.register(dashboardRoutes, { prefix: '/dashboard' });
   await app.register(pushRoutes, { prefix: '/push' });
-  await app.register(notesRoutes, { prefix: '/notes' });
+  await app.register(notesRoutes,  { prefix: '/notes' });
+  await app.register(goalsRoutes,  { prefix: '/goals' });
 
   app.setErrorHandler((error, request, reply) => {
     app.log.error(error);

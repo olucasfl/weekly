@@ -1,5 +1,6 @@
 import { prisma } from '../../lib/prisma.js';
 import { buildWeekOccurrences } from '../../../../shared/src/recurrence.js';
+import { getGoalsSummary } from '../goals/goals.service.js';
 
 export async function getDashboard(userId: string, weekStart: string) {
   const weekEnd = offsetDate(weekStart, 6);
@@ -57,7 +58,10 @@ export async function getDashboard(userId: string, weekStart: string) {
     if (completionMap.get(`${o.task.id}:${o.date}`)?.done) byCategory[key].completed += 1;
   }
 
-  const streak = await computeStreak(userId, weekStart);
+  const [streak, goals] = await Promise.all([
+    computeStreak(userId, weekStart),
+    getGoalsSummary(userId, weekStart),
+  ]);
 
   return {
     weekStart,
@@ -67,6 +71,7 @@ export async function getDashboard(userId: string, weekStart: string) {
     percent,
     streak,
     byCategory: Object.values(byCategory),
+    goals,
   };
 }
 

@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { getWeekOccurrences } from './week.service.js';
-import { listTasks } from '../tasks/tasks.service.js';
+import { getExtraOccurrencesForUser, listTasks } from '../tasks/tasks.service.js';
 
 export const weekRoutes: FastifyPluginAsync = async (app) => {
   app.get('/', async (request, reply) => {
@@ -8,7 +8,17 @@ export const weekRoutes: FastifyPluginAsync = async (app) => {
     if (!userId) return reply.code(401).send({ statusCode: 401, message: 'Não autenticado' });
 
     const start = (request.query as { start?: string }).start ?? new Date().toISOString().slice(0, 10);
-    const tasks = await listTasks(userId, undefined, true);
+    const [tasks, extraOccurrences] = await Promise.all([
+      listTasks(userId, undefined, true),
+      getExtraOccurrencesForUser(userId),
+    ]);
+
+    const extraByTaskId = new Map<string, string[]>();
+    for (const eo of extraOccurrences) {
+      const list = extraByTaskId.get(eo.taskId) ?? [];
+      list.push(eo.date);
+      extraByTaskId.set(eo.taskId, list);
+    }
 
     return getWeekOccurrences(
       userId,
@@ -33,6 +43,7 @@ export const weekRoutes: FastifyPluginAsync = async (app) => {
         monthlyWeek: task.monthlyWeek ?? undefined,
         deletedAt: task.deletedAt ?? undefined,
         notes: task.notes ?? undefined,
+        extraDays: extraByTaskId.get(task.id) ?? [],
       })),
       start,
     );

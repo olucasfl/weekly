@@ -1,5 +1,6 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { Flame, TrendingUp, Clock, Target } from 'lucide-react';
+import { Flame, TrendingUp, Clock, Target, Trophy, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { localISO, weekStartOf, addDays } from '../../lib/date';
 import { BottomNav } from '../../components/BottomNav';
@@ -13,6 +14,7 @@ type Dashboard = {
   percent: number;
   streak: number;
   byCategory: { name: string; color: string; completed: number; total: number }[];
+  goals?: { total: number; completed: number; percent: number };
 };
 
 const MONTH_ABBR = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
@@ -35,6 +37,7 @@ function weekLabel(iso: string) {
 }
 
 export function ProgressScreen() {
+  const navigate = useNavigate();
   const weekStart = getWeekStartISO();
 
   const { data: dashboard, isLoading } = useQuery<Dashboard>({
@@ -116,6 +119,34 @@ export function ProgressScreen() {
             {dashboard?.completed ?? 0} de {dashboard?.total ?? 0} tarefas concluídas
           </div>
         </div>
+
+        {/* Goals summary */}
+        {!isLoading && (dashboard?.goals?.total ?? 0) > 0 && (
+          <button
+            onClick={() => navigate('/metas')}
+            style={{
+              width: '100%', textAlign: 'left', cursor: 'pointer',
+              background: 'var(--brand-grad)', borderRadius: 'var(--r-lg)',
+              padding: '16px 18px', border: 'none', color: 'white',
+              boxShadow: 'var(--shadow-brand)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Trophy size={15} />
+                <span style={{ fontWeight: 700, fontSize: '0.88rem' }}>Metas da semana</span>
+              </div>
+              <span style={{ fontWeight: 700, fontSize: '1rem' }}>{dashboard!.goals!.percent}%</span>
+            </div>
+            <div style={{ height: 6, borderRadius: 99, background: 'rgba(255,255,255,0.25)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${dashboard!.goals!.percent}%`, background: 'white', borderRadius: 99 }} />
+            </div>
+            <div style={{ fontSize: '0.75rem', opacity: 0.8, marginTop: 8 }}>
+              {dashboard!.goals!.completed} de {dashboard!.goals!.total} concluída{dashboard!.goals!.total !== 1 ? 's' : ''}
+              <span style={{ marginLeft: 8, opacity: 0.7, display: 'inline-flex', alignItems: 'center', gap: 3 }}>· Ver tudo <ArrowRight size={11} /></span>
+            </div>
+          </button>
+        )}
 
         {/* Week history */}
         <div className="card">

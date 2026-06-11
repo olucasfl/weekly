@@ -94,3 +94,31 @@ export async function deleteTask(userId: string, id: string) {
   await prisma.task.update({ where: { id }, data: { deletedAt: today } });
   return { success: true };
 }
+
+export async function addExtraOccurrence(userId: string, taskId: string, date: string) {
+  const existing = await prisma.task.findFirst({ where: { id: taskId, userId } });
+  if (!existing) throw new Error('Tarefa não encontrada');
+
+  const id = crypto.randomUUID();
+  await prisma.$executeRaw`
+    INSERT INTO "ExtraOccurrence" ("id", "userId", "taskId", "date")
+    VALUES (${id}, ${userId}, ${taskId}, ${date})
+    ON CONFLICT ("userId", "taskId", "date") DO NOTHING
+  `;
+
+  // If this task was skipped on this day, un-skip it so it becomes visible again
+  await prisma.$executeRaw`
+    UPDATE "Completion" SET "skipped" = false
+    WHERE "userId" = ${userId} AND "taskId" = ${taskId} AND "date" = ${date}
+  `;
+
+  return { success: true };
+}
+
+export async function getExtraOccurrencesForUser(userId: string) {
+  return prisma.$queryRaw<{ id: string; userId: string; taskId: string; date: string }[]>`
+    SELECT "id", "userId", "taskId", "date"
+    FROM "ExtraOccurrence"
+    WHERE "userId" = ${userId}
+  `;
+}

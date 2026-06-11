@@ -24,9 +24,11 @@ model User {
   categories        Category[]
   tasks             Task[]
   goals             Goal[]
+  goalProgresses    GoalProgress[]
   completions       Completion[]
   pushSubscriptions PushSubscription[]
   notes             Note[]
+  extraOccurrences  ExtraOccurrence[]
 }
 
 model Category {
@@ -64,9 +66,22 @@ model Task {
   monthlyDay      Int?
   monthlyWeekday  Int?
   monthlyWeek     Int?
-  completions     Completion[]
+  completions      Completion[]
+  extraOccurrences ExtraOccurrence[]
 
   @@index([userId, type])
+}
+
+model ExtraOccurrence {
+  id     String @id @default(cuid())
+  userId String
+  taskId String
+  date   String
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, taskId, date])
+  @@index([userId])
 }
 
 model Completion {
@@ -84,17 +99,30 @@ model Completion {
 }
 
 model Goal {
-  id         String    @id @default(cuid())
+  id         String         @id @default(cuid())
   userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   title      String
-  target     Int
-  period     String    @default("week")
-  kind       String    @default("count")
+  target     Int            @default(1)
+  weekStart  String?        // null = recurring every week; ISO date = only for that week
   categoryId String?
-  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  category   Category?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  progresses GoalProgress[]
 
   @@index([userId])
+}
+
+model GoalProgress {
+  id        String @id @default(cuid())
+  userId    String
+  goalId    String
+  weekStart String
+  count     Int    @default(0)
+  goal      Goal   @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, goalId, weekStart])
+  @@index([userId, weekStart])
 }
 
 model PushSubscription {

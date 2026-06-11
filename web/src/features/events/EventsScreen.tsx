@@ -206,32 +206,25 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
 
         {error && <div className="error-msg" style={{ marginTop: 12 }}>{error}</div>}
 
-        {event?.deletedAt ? (
-          <div className="modal-actions">
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', flex: 1 }}>Evento removido — exibido apenas como histórico</div>
-            <button className="btn btn-ghost" onClick={onClose}>Fechar</button>
-          </div>
-        ) : (
-          <div className="modal-actions">
-            {isEdit && (
-              confirmDelete ? (
-                <>
-                  <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flex: 1, alignSelf: 'center' }}>Apagar mesmo?</span>
-                  <button className="btn btn-ghost" onClick={() => setConfirmDelete(false)}>Não</button>
-                  <button className="btn btn-danger" onClick={() => del.mutate()} disabled={del.isPending}>Sim</button>
-                </>
-              ) : (
-                <button className="btn btn-danger" onClick={() => setConfirmDelete(true)}>Apagar</button>
-              )
-            )}
-            {!confirmDelete && <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>}
-            {!confirmDelete && (
-              <button className="btn btn-primary" onClick={submit} disabled={upsert.isPending}>
-                {upsert.isPending ? 'Salvando…' : 'Salvar'}
-              </button>
-            )}
-          </div>
-        )}
+        <div className="modal-actions">
+          {isEdit && (
+            confirmDelete ? (
+              <>
+                <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flex: 1, alignSelf: 'center' }}>Apagar mesmo?</span>
+                <button className="btn btn-ghost" onClick={() => setConfirmDelete(false)}>Não</button>
+                <button className="btn btn-danger" onClick={() => del.mutate()} disabled={del.isPending}>Sim</button>
+              </>
+            ) : (
+              <button className="btn btn-danger" onClick={() => setConfirmDelete(true)}>Apagar</button>
+            )
+          )}
+          {!confirmDelete && <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>}
+          {!confirmDelete && (
+            <button className="btn btn-primary" onClick={submit} disabled={upsert.isPending}>
+              {upsert.isPending ? 'Salvando…' : 'Salvar'}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -266,7 +259,7 @@ export function EventsScreen() {
   }).sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.startTime.localeCompare(b.startTime));
 
   const past = filtered.filter((e) =>
-    e.deletedAt || (e.endDate ? e.endDate : e.date ?? '') < today
+    !e.deletedAt && (e.endDate ? e.endDate : e.date ?? '') < today
   ).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
 
   function dateRangeLabel(ev: Event) {

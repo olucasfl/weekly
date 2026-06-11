@@ -19,6 +19,7 @@ export type TaskLike = {
   monthlyWeek?: number | null;
   deletedAt?: string | null;
   notes?: string | null;
+  extraDays?: string[];
 };
 
 export type OccurrenceItem = {
@@ -131,6 +132,19 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
           const dateStr = d.toISOString().slice(0, 10);
           if (matches && notDeleted(deletedDate, dateStr)) occurrences.push({ task, date: dateStr });
           break;
+        }
+      }
+    }
+  }
+
+  // Extra occurrences manually added to specific days
+  for (const task of tasks.filter((t) => t.active !== false)) {
+    const deletedDate = task.deletedAt ?? null;
+    for (const extraDay of task.extraDays ?? []) {
+      const d = new Date(extraDay + 'T00:00:00');
+      if (d >= start && d <= end && notDeleted(deletedDate, extraDay)) {
+        if (!occurrences.some((o) => o.task.id === task.id && o.date === extraDay)) {
+          occurrences.push({ task, date: extraDay });
         }
       }
     }

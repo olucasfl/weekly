@@ -12,8 +12,10 @@ import { TasksScreen }   from './features/tasks/TasksScreen';
 import { EventsScreen }  from './features/events/EventsScreen';
 import { ProgressScreen } from './features/progress/ProgressScreen';
 import { ProfileScreen } from './features/profile/ProfileScreen';
+import { GoalsScreen } from './features/goals/GoalsScreen';
 import { SplashScreen, isPWA } from './components/SplashScreen';
 import { OfflineBanner } from './components/OfflineBanner';
+import { PullToRefresh } from './components/PullToRefresh';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const user = useAuthStore((s) => s.user);
@@ -27,6 +29,7 @@ export default function App() {
     <div className="app-shell">
       <OfflineBanner />
       {showSplash && <SplashScreen onDone={() => setShowSplash(false)} />}
+      <PullToRefresh>
       <Routes>
         <Route path="/auth"            element={<AuthScreen />} />
         <Route path="/verificar-email"        element={<VerifyEmailScreen />} />
@@ -38,7 +41,9 @@ export default function App() {
         <Route path="/eventos"   element={<ProtectedRoute><EventsScreen /></ProtectedRoute>} />
         <Route path="/progresso" element={<ProtectedRoute><ProgressScreen /></ProtectedRoute>} />
         <Route path="/perfil"    element={<ProtectedRoute><ProfileScreen /></ProtectedRoute>} />
+        <Route path="/metas"     element={<ProtectedRoute><GoalsScreen /></ProtectedRoute>} />
       </Routes>
+      </PullToRefresh>
     </div>
   );
 }

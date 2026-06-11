@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Check, Leaf, CheckCheck, RotateCcw, List, LayoutGrid, CalendarDays, ArrowRight, Trash2, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Leaf, CheckCheck, RotateCcw, List, LayoutGrid, CalendarDays, ArrowRight, Trash2, Plus, Trophy } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { localISO, weekStartOf, addDays } from '../../lib/date';
 import { BottomNav } from '../../components/BottomNav';
@@ -27,9 +28,11 @@ type Occurrence = {
   notes?: string | null;
 };
 
-type RecurringTask = {
+type AnyTask = {
   id: string;
   title: string;
+  type: 'RECURRING' | 'SCHEDULED';
+  date?: string | null;
   startTime: string;
   endTime?: string | null;
   notes?: string | null;
@@ -51,6 +54,7 @@ const MONTH_NAMES    = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 
 type ViewMode = 'list' | 'grid' | 'month';
 
 export function WeekScreen() {
+  const navigate = useNavigate();
   const today = new Date();
   const [weekStart, setWeekStart]       = useState(() => weekStartOf(today));
   const [selectedDate, setSelectedDate] = useState(() => localISO(today));
@@ -58,6 +62,8 @@ export function WeekScreen() {
   const [toastError, setToastError]     = useState<string | null>(null);
   const [confirmSkip, setConfirmSkip]   = useState<string | null>(null); // taskId being confirmed
   const [showAddExisting, setShowAddExisting] = useState(false);
+  const [addExistingTab, setAddExistingTab] = useState<'recurring' | 'events'>('recurring');
+  const [addingTaskId, setAddingTaskId] = useState<string | null>(null);
 
   useEffect(() => { localStorage.setItem('weekViewMode', viewMode); }, [viewMode]);
 
@@ -70,11 +76,19 @@ export function WeekScreen() {
     queryFn: () => api(`/week?start=${weekStartISO}`),
   });
 
-  const { data: allTasks = [] } = useQuery<RecurringTask[]>({
+  const { data: allRecurring = [], isLoading: loadingRecurring } = useQuery<AnyTask[]>({
     queryKey: ['tasks', 'recurring'],
     queryFn: () => api('/tasks?type=recurring'),
     enabled: showAddExisting,
   });
+
+  const { data: allEvents = [], isLoading: loadingEvents } = useQuery<AnyTask[]>({
+    queryKey: ['tasks', 'scheduled'],
+    queryFn: () => api('/tasks?type=scheduled'),
+    enabled: showAddExisting,
+  });
+
+  const loadingAddModal = loadingRecurring || loadingEvents;
 
   const { data: note } = useQuery<{ date: string; content: string }>({
     queryKey: ['note', selectedDate],
@@ -159,28 +173,22 @@ export function WeekScreen() {
   });
 
   const addExistingMutation = useMutation({
-    mutationFn: (task: RecurringTask) =>
-      api('/tasks', {
+    mutationFn: (task: AnyTask) => {
+      setAddingTaskId(task.id);
+      return api(`/tasks/${task.id}/extra-days`, {
         method: 'POST',
-        body: JSON.stringify({
-          title: task.title,
-          type: 'SCHEDULED',
-          weekdays: [],
-          date: selectedDate,
-          startTime: task.startTime,
-          endTime: task.endTime ?? undefined,
-          notes: task.notes ?? undefined,
-          reminder: task.reminder,
-          reminderMin: task.reminderMin,
-          categoryId: task.categoryId ?? undefined,
-          active: true,
-        }),
-      }),
+        body: JSON.stringify({ date: selectedDate }),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['week', weekStartISO] });
       setShowAddExisting(false);
+      setAddingTaskId(null);
     },
-    onError: (e) => showError(e instanceof Error ? e.message : 'Erro ao adicionar'),
+    onError: (e) => {
+      setAddingTaskId(null);
+      showError(e instanceof Error ? e.message : 'Erro ao adicionar');
+    },
   });
 
   function onToggle(taskId: string, date: string, done: boolean) {
@@ -193,7 +201,9 @@ export function WeekScreen() {
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
   const dayTaskIds = new Set(dayOccurrences.map((o) => o.taskId));
-  const tasksNotOnThisDay = allTasks.filter((t) => !dayTaskIds.has(t.id));
+  const todayISO = localISO(today);
+  const recurringNotOnThisDay = allRecurring.filter((t) => !dayTaskIds.has(t.id));
+  const eventsNotOnThisDay = allEvents.filter((t) => !dayTaskIds.has(t.id) && (t.date ?? '') >= todayISO);
 
   const doneCount = dayOccurrences.filter((o) => o.done).length;
   const isCurrentWeek = localISO(weekStart) === localISO(weekStartOf(today));
@@ -219,7 +229,28 @@ export function WeekScreen() {
         <div className="row-between">
           <div>
             <LogoFull iconSize={22} textSize="sm" />
-            <div className="screen-subtitle" style={{ marginTop: 2 }}>{weekLabel}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+              <div className="screen-subtitle">{weekLabel}</div>
+              <button
+                onClick={() => navigate('/metas')}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '4px 10px 4px 7px',
+                  borderRadius: 'var(--r-full)',
+                  background: 'var(--brand-grad)',
+                  border: 'none', cursor: 'pointer',
+                  fontSize: '0.75rem', fontWeight: 700, color: 'white',
+                  boxShadow: '0 2px 8px rgba(114,85,224,0.35)',
+                  letterSpacing: '0.01em',
+                  transition: 'opacity 0.15s',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.85')}
+                onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+              >
+                <Trophy size={12} strokeWidth={2.2} />
+                Metas
+              </button>
+            </div>
           </div>
           <div className="row" style={{ gap: 4 }}>
             <div className="view-mode-tabs">
@@ -433,10 +464,10 @@ export function WeekScreen() {
             <button
               className="btn btn-ghost"
               style={{ width: '100%', gap: 8, fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}
-              onClick={() => setShowAddExisting(true)}
+              onClick={() => { setAddExistingTab('recurring'); setShowAddExisting(true); }}
             >
               <Plus size={14} strokeWidth={2} />
-              Adicionar afazer existente a este dia
+              Adicionar afazer ou evento existente a este dia
             </button>
           )}
 
@@ -478,33 +509,104 @@ export function WeekScreen() {
               <span className="modal-title">Adicionar a {DAY_NAMES_FULL[new Date(selectedDate + 'T12:00:00').getDay()]}</span>
               <button className="modal-close" onClick={() => setShowAddExisting(false)}>✕</button>
             </div>
-            {tasksNotOnThisDay.length === 0 ? (
-              <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
-                Todos os seus afazeres já aparecem neste dia.
-              </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
-                {tasksNotOnThisDay.map((task) => (
-                  <button
-                    key={task.id}
-                    className="task-row"
-                    style={{ textAlign: 'left', background: 'none', border: '1.5px solid var(--border)', borderRadius: 'var(--r-md)', cursor: 'pointer' }}
-                    onClick={() => addExistingMutation.mutate(task)}
-                    disabled={addExistingMutation.isPending}
-                  >
-                    {task.category && <div className="task-cat-bar" style={{ background: task.category.color }} />}
-                    <div className="task-info">
-                      <div className="task-name">{task.title}</div>
-                      <div className="task-meta">
-                        {task.startTime}{task.endTime ? ` – ${task.endTime}` : ''}
-                        {task.category && <span style={{ color: task.category.color, fontWeight: 600, marginLeft: 5 }}>· {task.category.name}</span>}
-                      </div>
-                    </div>
-                    <Plus size={14} color="var(--brand)" style={{ flexShrink: 0 }} />
-                  </button>
+            {loadingAddModal ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0 8px' }}>
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="skeleton" style={{ height: 56, borderRadius: 'var(--r-md)' }} />
                 ))}
               </div>
+            ) : (<>
+            {/* Tab buttons */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+              {(['recurring', 'events'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setAddExistingTab(tab)}
+                  style={{
+                    flex: 1,
+                    padding: '7px 0',
+                    borderRadius: 'var(--r-md)',
+                    border: addExistingTab === tab ? '1.5px solid var(--brand)' : '1.5px solid var(--border)',
+                    background: addExistingTab === tab ? 'var(--brand)' : 'transparent',
+                    color: addExistingTab === tab ? '#fff' : 'var(--text-muted)',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {tab === 'recurring' ? 'Afazeres' : 'Eventos'}
+                </button>
+              ))}
+            </div>
+
+            {/* Tab content */}
+            {addExistingTab === 'recurring' && (
+              recurringNotOnThisDay.length === 0 ? (
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
+                  Todos os seus afazeres já aparecem neste dia.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
+                  {recurringNotOnThisDay.map((task) => (
+                    <button
+                      key={task.id}
+                      className="task-row"
+                      style={{ textAlign: 'left', background: 'none', border: '1.5px solid var(--border)', borderRadius: 'var(--r-md)', cursor: addExistingMutation.isPending ? 'default' : 'pointer' }}
+                      onClick={() => addExistingMutation.mutate(task)}
+                      disabled={addExistingMutation.isPending}
+                    >
+                      {task.category && <div className="task-cat-bar" style={{ background: task.category.color }} />}
+                      <div className="task-info">
+                        <div className="task-name">{task.title}</div>
+                        <div className="task-meta">
+                          {task.startTime}{task.endTime ? ` – ${task.endTime}` : ''}
+                          {task.category && <span style={{ color: task.category.color, fontWeight: 600, marginLeft: 5 }}>· {task.category.name}</span>}
+                        </div>
+                      </div>
+                      {addingTaskId === task.id
+                        ? <div className="spinner" style={{ width: 14, height: 14, flexShrink: 0 }} />
+                        : <Plus size={14} color="var(--brand)" style={{ flexShrink: 0, opacity: addExistingMutation.isPending ? 0.3 : 1 }} />
+                      }
+                    </button>
+                  ))}
+                </div>
+              )
             )}
+
+            {addExistingTab === 'events' && (
+              eventsNotOnThisDay.length === 0 ? (
+                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
+                  Nenhum evento de hoje em diante disponível.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>
+                  {eventsNotOnThisDay.map((task) => (
+                    <button
+                      key={task.id}
+                      className="task-row"
+                      style={{ textAlign: 'left', background: 'none', border: '1.5px solid var(--border)', borderRadius: 'var(--r-md)', cursor: addExistingMutation.isPending ? 'default' : 'pointer' }}
+                      onClick={() => addExistingMutation.mutate(task)}
+                      disabled={addExistingMutation.isPending}
+                    >
+                      <div className="task-cat-bar" style={{ background: task.category?.color ?? EVENT_COLOR }} />
+                      <div className="task-info">
+                        <div className="task-name">{task.title}</div>
+                        <div className="task-meta">
+                          {task.startTime}{task.endTime ? ` – ${task.endTime}` : ''}
+                          {task.category && <span style={{ color: task.category.color, fontWeight: 600, marginLeft: 5 }}>· {task.category.name}</span>}
+                        </div>
+                      </div>
+                      {addingTaskId === task.id
+                        ? <div className="spinner" style={{ width: 14, height: 14, flexShrink: 0 }} />
+                        : <Plus size={14} color="var(--brand)" style={{ flexShrink: 0, opacity: addExistingMutation.isPending ? 0.3 : 1 }} />
+                      }
+                    </button>
+                  ))}
+                </div>
+              )
+            )}
+            </>)}
           </div>
         </div>
       )}

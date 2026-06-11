@@ -1,6 +1,6 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
-import { createTask, deleteTask, listTasks, updateTask } from './tasks.service.js';
+import { addExtraOccurrence, createTask, deleteTask, listTasks, updateTask } from './tasks.service.js';
 
 const taskInputSchema = z.object({
   title: z.string().min(1),
@@ -31,8 +31,7 @@ export const tasksRoutes: FastifyPluginAsync = async (app) => {
 
     const type = (request.query as { type?: string }).type;
     const taskType = type === 'recurring' ? 'RECURRING' : type === 'scheduled' ? 'SCHEDULED' : undefined;
-    const includeDeleted = type === 'scheduled'; // eventos mantêm histórico
-    return listTasks(userId, taskType, includeDeleted);
+    return listTasks(userId, taskType, false);
   });
 
   app.post('/', async (request, reply) => {
@@ -74,6 +73,18 @@ export const tasksRoutes: FastifyPluginAsync = async (app) => {
       return reply.send(result);
     } catch (error) {
       return reply.code(404).send({ statusCode: 404, message: error instanceof Error ? error.message : 'Erro ao apagar tarefa' });
+    }
+  });
+
+  app.post('/:id/extra-days', async (request, reply) => {
+    const userId = request.user?.sub;
+    if (!userId) return reply.code(401).send({ statusCode: 401, message: 'Não autenticado' });
+    try {
+      const { date } = z.object({ date: z.string() }).parse(request.body);
+      const result = await addExtraOccurrence(userId, (request.params as { id: string }).id, date);
+      return reply.send(result);
+    } catch (error) {
+      return reply.code(400).send({ statusCode: 400, message: error instanceof Error ? error.message : 'Erro ao adicionar ocorrência' });
     }
   });
 };
