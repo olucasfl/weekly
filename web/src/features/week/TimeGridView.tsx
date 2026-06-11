@@ -3,7 +3,7 @@ import { localISO } from '../../lib/date';
 
 const EVENT_COLOR = '#f43f5e';
 const HOUR_H = 64;
-const GRID_START = 5;
+const GRID_START = 0;
 const GRID_END = 23;
 const HOURS = Array.from({ length: GRID_END - GRID_START + 1 }, (_, i) => GRID_START + i);
 const TOTAL_H = HOURS.length * HOUR_H;
