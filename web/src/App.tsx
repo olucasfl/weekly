@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAuthStore } from './store/auth';
 import { AuthScreen }          from './features/auth/AuthScreen';
 import { VerifyEmailScreen }       from './features/auth/VerifyEmailScreen';
@@ -28,6 +29,7 @@ export default function App() {
   );
 
   return (
+    <ErrorBoundary>
     <div className="app-shell">
       <OfflineBanner />
       {showSplash && <SplashScreen onDone={() => { sessionStorage.setItem('splashShown', '1'); setShowSplash(false); }} />}
@@ -47,5 +49,6 @@ export default function App() {
       </Routes>
       </PullToRefresh>
     </div>
+    </ErrorBoundary>
   );
 }

@@ -92,22 +92,31 @@ async function computeStreak(userId: string, _weekStart: string): Promise<number
     active: t.active,
   }));
 
-  // Check last 365 days going back from yesterday
   const today = new Date().toISOString().slice(0, 10);
-  let streak = 0;
+  const since = offsetDate(today, -365);
 
+  // Single query for all completions in the window
+  const allCompletions = await prisma.completion.findMany({
+    where: { userId, date: { gte: since, lte: today } },
+  });
+
+  // Group by date → taskId → done
+  const byDate = new Map<string, Map<string, boolean>>();
+  for (const c of allCompletions) {
+    if (!byDate.has(c.date)) byDate.set(c.date, new Map());
+    byDate.get(c.date)!.set(c.taskId, c.done);
+  }
+
+  let streak = 0;
   for (let i = 1; i <= 365; i++) {
     const dateStr = offsetDate(today, -i);
-    // Build occurrences for the week that contains this date, then filter to just this day
     const weekMonday = mondayOfDate(dateStr);
-    const occsForWeek = buildWeekOccurrences(taskLikes, weekMonday);
-    const occsForDay = occsForWeek.filter((o) => o.date === dateStr);
+    const occsForDay = buildWeekOccurrences(taskLikes, weekMonday).filter((o) => o.date === dateStr);
 
-    if (occsForDay.length === 0) continue; // no tasks this day — transparent
+    if (occsForDay.length === 0) continue; // dia sem tarefas — transparente
 
-    const comps = await prisma.completion.findMany({ where: { userId, date: dateStr } });
-    const doneSet = new Set(comps.filter((c) => c.done).map((c) => c.taskId));
-    const allDone = occsForDay.every((o) => doneSet.has(o.task.id));
+    const dayMap = byDate.get(dateStr) ?? new Map<string, boolean>();
+    const allDone = occsForDay.every((o) => dayMap.get(o.task.id) === true);
 
     if (!allDone) break;
     streak++;

@@ -4,6 +4,7 @@ import { Plus, Bell, BellOff, CircleDot, CircleOff, CheckSquare, Check, Search, 
 import { api } from '../../lib/api';
 import { BottomNav } from '../../components/BottomNav';
 import { TaskRowSkeleton } from '../../components/Skeleton';
+import { DAY_NAMES_FULL } from '../../lib/constants';
 
 type Category = { id: string; name: string; color: string };
 
@@ -147,7 +148,6 @@ const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
   monthly_weekday: 'Mensal — mesmo dia da semana',
 };
 
-const DAY_NAMES_FULL = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
 const WEEK_LABELS = ['1ª', '2ª', '3ª', '4ª', 'Última'];
 const WEEK_VALUES = [1, 2, 3, 4, -1];
 

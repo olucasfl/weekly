@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
 import fastifyCors from '@fastify/cors';
 import fastifyCookie from '@fastify/cookie';
+import fastifyRateLimit from '@fastify/rate-limit';
 
 import { env } from './env.js';
 import { verifyAccessToken } from './lib/auth.js';
@@ -25,6 +26,9 @@ export async function buildApp() {
 
   await app.register(fastifyCookie);
   await app.register(fastifyCors, { origin: env.CORS_ORIGIN.split(',') });
+  await app.register(fastifyRateLimit, {
+    global: false, // só aplica em rotas que optarem
+  });
 
   app.decorateRequest('user', null);
   const PUBLIC_PATHS = new Set([

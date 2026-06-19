@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { localISO } from '../../lib/date';
-
-const EVENT_COLOR = '#f43f5e';
+import { EVENT_COLOR } from '../../lib/constants';
 const HOUR_H = 64;
 const GRID_START = 0;
 const GRID_END = 23;

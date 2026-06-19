@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { localISO, weekStartOf, addDays } from '../../lib/date';
 import { BottomNav } from '../../components/BottomNav';
+import { MONTH_NAMES_LC } from '../../lib/constants';
 
 type Goal = {
   id: string;
@@ -21,8 +22,6 @@ type Goal = {
   done: boolean;
 };
 
-const MONTH_NAMES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-
 function isoToDate(iso: string): Date {
   return new Date(iso + 'T12:00:00');
 }
@@ -32,9 +31,9 @@ function fmtWeekRange(weekStartISO: string): string {
   const end = new Date(start);
   end.setDate(end.getDate() + 6);
   const sD = start.getDate();
-  const sM = MONTH_NAMES[start.getMonth()];
+  const sM = MONTH_NAMES_LC[start.getMonth()];
   const eD = end.getDate();
-  const eM = MONTH_NAMES[end.getMonth()];
+  const eM = MONTH_NAMES_LC[end.getMonth()];
   return sM === eM ? `${sD}–${eD} ${sM}` : `${sD} ${sM} – ${eD} ${eM}`;
 }
 

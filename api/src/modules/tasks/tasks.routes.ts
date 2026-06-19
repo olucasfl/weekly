@@ -41,7 +41,14 @@ export const tasksRoutes: FastifyPluginAsync = async (app) => {
     }
 
     try {
-      const task = await createTask(userId, taskInputSchema.parse(request.body));
+      const input = taskInputSchema.parse(request.body);
+      if (input.type === 'SCHEDULED' && input.date) {
+        const today = new Date().toISOString().slice(0, 10);
+        if (input.date < today) {
+          return reply.code(400).send({ statusCode: 400, message: 'Não é possível criar um evento em uma data passada' });
+        }
+      }
+      const task = await createTask(userId, input);
       return reply.code(201).send(task);
     } catch (error) {
       return reply.code(400).send({ statusCode: 400, message: error instanceof Error ? error.message : 'Erro ao criar tarefa' });

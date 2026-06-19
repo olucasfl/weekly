@@ -27,8 +27,12 @@ const loginInputSchema = z.object({
   password: z.string().min(6),
 });
 
+const RATE_LIMIT_AUTH = {
+  config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+};
+
 export const authRoutes: FastifyPluginAsync = async (app) => {
-  app.post('/register', async (request, reply) => {
+  app.post('/register', RATE_LIMIT_AUTH, async (request, reply) => {
     try {
       const body = registerInputSchema.parse(request.body);
       const user = await registerUser(body);
@@ -40,7 +44,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
-  app.post('/login', async (request, reply) => {
+  app.post('/login', { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } }, async (request, reply) => {
     try {
       const body = loginInputSchema.parse(request.body);
       const result = await loginUser(body);
@@ -96,7 +100,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // Redefinição de senha
-  app.post('/forgot-password', async (request, reply) => {
+  app.post('/forgot-password', RATE_LIMIT_AUTH, async (request, reply) => {
     const { email } = request.body as { email?: string };
     if (!email) return reply.code(400).send({ statusCode: 400, message: 'Email ausente' });
     await forgotPassword(email);

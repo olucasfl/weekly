@@ -4,6 +4,7 @@ import { Plus, Bell, CalendarDays, Search, ArrowRight, X, ChevronDown, ChevronUp
 import { api } from '../../lib/api';
 import { BottomNav } from '../../components/BottomNav';
 import { TaskRowSkeleton } from '../../components/Skeleton';
+import { EVENT_COLOR, MONTH_NAMES } from '../../lib/constants';
 
 type Event = {
   id: string;
@@ -18,10 +19,6 @@ type Event = {
   deletedAt?: string | null;
   notes?: string | null;
 };
-
-const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
-const EVENT_COLOR = '#f43f5e';
 
 function formatDate(iso: string) {
   const d = new Date(iso + 'T12:00:00');

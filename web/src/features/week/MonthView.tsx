@@ -3,10 +3,9 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import { api } from '../../lib/api';
 import { addDays, localISO, mondayOf } from '../../lib/date';
+import { EVENT_COLOR, MONTH_NAMES_FULL } from '../../lib/constants';
 
-const EVENT_COLOR = '#f43f5e';
 const DAY_ABBR = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
-const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 type Occurrence = {
   taskId: string;
@@ -83,7 +82,7 @@ export function MonthView({ today, filterCatId, onSelectDay }: Props) {
       {/* Month navigation */}
       <div className="month-nav">
         <button className="btn-bulk" onClick={prevMonth}><ChevronLeft size={15} /></button>
-        <span className="month-title">{MONTH_NAMES[month]} {year}</span>
+        <span className="month-title">{MONTH_NAMES_FULL[month]} {year}</span>
         <button className="btn-bulk" onClick={nextMonth}><ChevronRight size={15} /></button>
       </div>
 

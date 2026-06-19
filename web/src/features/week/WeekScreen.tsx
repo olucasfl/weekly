@@ -4,13 +4,12 @@ import { ChevronLeft, ChevronRight, Check, Leaf, CheckCheck, RotateCcw, List, La
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { localISO, weekStartOf, addDays } from '../../lib/date';
+import { EVENT_COLOR, DAY_NAMES, DAY_NAMES_FULL, MONTH_NAMES_LC } from '../../lib/constants';
 import { BottomNav } from '../../components/BottomNav';
 import { LogoFull } from '../../components/Logo';
 import { TaskRowSkeleton } from '../../components/Skeleton';
 import { TimeGridView } from './TimeGridView';
 import { MonthView } from './MonthView';
-
-const EVENT_COLOR = '#f43f5e';
 
 type Occurrence = {
   taskId: string;
@@ -47,9 +46,6 @@ function fmtShort(iso: string) {
   return `${d.getDate()}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-const DAY_NAMES      = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
-const DAY_NAMES_FULL = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'];
-const MONTH_NAMES    = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
 type ViewMode = 'list' | 'grid' | 'month';
 
@@ -99,6 +95,7 @@ export function WeekScreen() {
   const noteMutation = useMutation({
     mutationFn: (content: string) =>
       api('/notes', { method: 'PUT', body: JSON.stringify({ date: selectedDate, content }) }),
+    onError: () => showError('Erro ao salvar nota. Tente novamente.'),
   });
 
   const [noteText, setNoteText] = useState('');
@@ -220,7 +217,7 @@ export function WeekScreen() {
   }
 
   const weekEnd   = addDays(weekStart, 6);
-  const weekLabel = `${weekStart.getDate()} ${MONTH_NAMES[weekStart.getMonth()]} – ${weekEnd.getDate()} ${MONTH_NAMES[weekEnd.getMonth()]}`;
+  const weekLabel = `${weekStart.getDate()} ${MONTH_NAMES_LC[weekStart.getMonth()]} – ${weekEnd.getDate()} ${MONTH_NAMES_LC[weekEnd.getMonth()]}`;
 
   return (
     <>
