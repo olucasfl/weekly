@@ -78,6 +78,7 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
     if (task.type !== 'RECURRING') continue;
 
     const rtype = task.recurrenceType ?? 'weekly';
+    const taskStartDate = task.date ?? null; // date = start date for recurring tasks
 
     if (rtype === 'weekly') {
       for (const weekday of task.weekdays) {
@@ -85,7 +86,8 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
         const dayOffset = (weekday - start.getDay() + 7) % 7;
         current.setDate(start.getDate() + dayOffset);
         const dateStr = current.toISOString().slice(0, 10);
-        if (current >= start && current <= end && notDeleted(deletedDate, dateStr)) {
+        if (current >= start && current <= end && notDeleted(deletedDate, dateStr)
+          && (!taskStartDate || dateStr >= taskStartDate)) {
           occurrences.push({ task, date: dateStr });
         }
       }
@@ -101,7 +103,8 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
           const dayOffset = (weekday - start.getDay() + 7) % 7;
           current.setDate(start.getDate() + dayOffset);
           const dateStr = current.toISOString().slice(0, 10);
-          if (current >= start && current <= end && notDeleted(deletedDate, dateStr)) {
+          if (current >= start && current <= end && notDeleted(deletedDate, dateStr)
+            && (!taskStartDate || dateStr >= taskStartDate)) {
             occurrences.push({ task, date: dateStr });
           }
         }
@@ -111,7 +114,8 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
         const d = new Date(start);
         d.setDate(start.getDate() + i);
         const dateStr = d.toISOString().slice(0, 10);
-        if (d.getDate() === task.monthlyDay && notDeleted(deletedDate, dateStr)) {
+        if (d.getDate() === task.monthlyDay && notDeleted(deletedDate, dateStr)
+          && (!taskStartDate || dateStr >= taskStartDate)) {
           occurrences.push({ task, date: dateStr });
           break;
         }
@@ -130,7 +134,8 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
             matches = Math.ceil(d.getDate() / 7) === task.monthlyWeek;
           }
           const dateStr = d.toISOString().slice(0, 10);
-          if (matches && notDeleted(deletedDate, dateStr)) occurrences.push({ task, date: dateStr });
+          if (matches && notDeleted(deletedDate, dateStr)
+            && (!taskStartDate || dateStr >= taskStartDate)) occurrences.push({ task, date: dateStr });
           break;
         }
       }

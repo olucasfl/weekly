@@ -236,11 +236,15 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
       extra.monthlyWeek = getNthWeekday(now);
     }
 
+    const today = new Date();
+    const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
     upsert.mutate({
       title: form.title.trim(),
       notes: form.notes || undefined,
       type: 'RECURRING',
       weekdays: form.weekdays,
+      ...(!isEdit ? { date: todayISO } : {}),
       startTime: form.startTime,
       endTime: form.endTime || undefined,
       reminder: form.reminder,
