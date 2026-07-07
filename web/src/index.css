@@ -219,14 +219,15 @@ body::before {
   -webkit-user-select: none; user-select: none;
 }
 .task-row:hover  { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
-.task-row:active { transform: scale(0.99); }
 .task-row.done   { opacity: 0.5; background: var(--bg-surface-2); }
+.task-check:active { transform: scale(0.9); }
 
 .task-check {
   width: 22px; height: 22px;
   border-radius: var(--r-full);
   border: 2px solid var(--brand-mid);
   background: transparent;
+  padding: 0;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
   cursor: pointer;

@@ -383,12 +383,16 @@ export function WeekScreen() {
                     <div
                       className={`task-row multiday-row${item.done ? ' done' : ''}`}
                       style={{ borderLeft: `3px solid ${color ?? EVENT_COLOR}` }}
-                      onClick={() => onToggle(item.taskId, item.date, !item.done)}
                     >
                       <div className="task-cat-bar" style={{ background: color ?? EVENT_COLOR, opacity: 0.7 }} />
-                      <div className={`task-check${item.done ? ' checked' : ''}`}>
+                      <button
+                        className={`task-check${item.done ? ' checked' : ''}`}
+                        style={{ touchAction: 'manipulation' }}
+                        onClick={() => onToggle(item.taskId, item.date, !item.done)}
+                        aria-label={item.done ? 'Desmarcar' : 'Marcar como feito'}
+                      >
                         <Check size={11} strokeWidth={3} color="white" />
-                      </div>
+                      </button>
                       <div className="task-info">
                         <div className={`task-name${item.done ? ' done' : ''}`}>{item.title}</div>
                         <div className="task-meta" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -423,14 +427,18 @@ export function WeekScreen() {
                 ) : (
                   <div
                     className={`task-row${item.done ? ' done' : ''}`}
-                    onClick={() => onToggle(item.taskId, item.date, !item.done)}
                   >
                     {(item.category || item.type === 'SCHEDULED') && (
                       <div className="task-cat-bar" style={{ background: color }} />
                     )}
-                    <div className={`task-check${item.done ? ' checked' : ''}`}>
+                    <button
+                      className={`task-check${item.done ? ' checked' : ''}`}
+                      style={{ touchAction: 'manipulation' }}
+                      onClick={() => onToggle(item.taskId, item.date, !item.done)}
+                      aria-label={item.done ? 'Desmarcar' : 'Marcar como feito'}
+                    >
                       <Check size={11} strokeWidth={3} color="white" />
-                    </div>
+                    </button>
                     <div className="task-info">
                       <div className={`task-name${item.done ? ' done' : ''}`}>{item.title}</div>
                       <div className="task-meta">
