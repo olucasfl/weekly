@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { useAuthStore } from './store/auth';
+import { api } from './lib/api';
 import { AuthScreen }          from './features/auth/AuthScreen';
 import { VerifyEmailScreen }       from './features/auth/VerifyEmailScreen';
 import { VerifyEmailChangeScreen } from './features/auth/VerifyEmailChangeScreen';
@@ -20,6 +21,20 @@ import { PullToRefresh } from './components/PullToRefresh';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const user = useAuthStore((s) => s.user);
+
+  useEffect(() => {
+    if (!user) return;
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if (Notification.permission !== 'granted') return;
+    navigator.serviceWorker.ready.then((reg) =>
+      reg.pushManager.getSubscription().then((sub) => {
+        if (!sub) return;
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
+        api('/push/timezone', { method: 'PATCH', body: JSON.stringify({ timezone }) }).catch(() => {});
+      })
+    ).catch(() => {});
+  }, [user?.id]);
+
   return user ? <>{children}</> : <Navigate to="/auth" replace />;
 }
 

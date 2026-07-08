@@ -362,11 +362,20 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
             </div>
 
             {form.reminder && (
-              <div className="field" style={{ marginTop: 8 }}>
-                <label className="label">Antecedência</label>
+              <div className="field" style={{ marginTop: 4 }}>
                 <select className="select" value={form.reminderMin} onChange={(e) => setForm({ ...form, reminderMin: Number(e.target.value) })}>
-                  {[5, 10, 15, 30, 60, 120].map((m) => (
-                    <option key={m} value={m}>{m} min antes</option>
+                  {[
+                    { value: 5,   label: '5 min antes' },
+                    { value: 10,  label: '10 min antes' },
+                    { value: 15,  label: '15 min antes' },
+                    { value: 30,  label: '30 min antes' },
+                    { value: 60,  label: '1 hora antes' },
+                    { value: 120, label: '2 horas antes' },
+                    { value: 180, label: '3 horas antes' },
+                    { value: 360, label: '6 horas antes' },
+                    { value: 720, label: '12 horas antes' },
+                  ].map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
                   ))}
                 </select>
               </div>

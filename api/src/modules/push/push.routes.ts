@@ -34,4 +34,14 @@ export const pushRoutes: FastifyPluginAsync = async (app) => {
     await prisma.pushSubscription.deleteMany({ where: { userId, endpoint } });
     return { ok: true };
   });
+
+  // Called on app startup to keep stored timezone in sync with device timezone
+  app.patch('/timezone', async (request, reply) => {
+    const userId = request.user?.sub;
+    if (!userId) return reply.code(401).send({ statusCode: 401, message: 'Não autenticado' });
+
+    const { timezone } = z.object({ timezone: z.string() }).parse(request.body);
+    await prisma.pushSubscription.updateMany({ where: { userId }, data: { timezone } });
+    return { ok: true };
+  });
 };

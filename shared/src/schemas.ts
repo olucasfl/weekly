@@ -13,6 +13,8 @@ export const taskSchema = z.object({
   endTime: z.string().optional(),
   reminder: z.boolean().default(true),
   reminderMin: z.number().int().default(60),
+  important: z.boolean().default(false),
+  countdownDays: z.number().int().nullable().optional(),
   categoryId: z.string().optional(),
   active: z.boolean().default(true),
 });

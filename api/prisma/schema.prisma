@@ -67,6 +67,8 @@ model Task {
   monthlyDay      Int?
   monthlyWeekday  Int?
   monthlyWeek     Int?
+  important       Boolean      @default(false)
+  countdownDays   Int?
   completions      Completion[]
   extraOccurrences ExtraOccurrence[]
 

@@ -16,6 +16,18 @@ function mondayOf(dateStr: string): string {
   return d.toISOString().slice(0, 10);
 }
 
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function diffDays(futureDateStr: string, todayStr: string): number {
+  const a = new Date(futureDateStr + 'T12:00:00Z');
+  const b = new Date(todayStr + 'T12:00:00Z');
+  return Math.round((a.getTime() - b.getTime()) / (86400 * 1000));
+}
+
 // Returns current {hours, minutes, dateStr} in the given IANA timezone
 function nowInZone(tz: string): { hours: number; minutes: number; dateStr: string } {
   const now = new Date();
@@ -34,7 +46,6 @@ function nowInZone(tz: string): { hours: number; minutes: number; dateStr: strin
       dateStr: `${get('year')}-${get('month')}-${get('day')}`,
     };
   } catch {
-    // Invalid timezone fallback to UTC
     return {
       hours: now.getUTCHours(),
       minutes: now.getUTCMinutes(),
@@ -45,6 +56,25 @@ function nowInZone(tz: string): { hours: number; minutes: number; dateStr: strin
 
 // Tracks sent notifications to avoid duplicates within the same minute window
 const sentThisMinute = new Map<string, number>();
+
+async function sendToSubs(
+  subs: { endpoint: string; p256dh: string; auth: string }[],
+  payload: string,
+): Promise<void> {
+  await Promise.allSettled(
+    subs.map(sub =>
+      webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        payload,
+      ).catch(err => {
+        console.error('[push] send failed:', err.message);
+        if (err.statusCode === 410 || err.statusCode === 404) {
+          prisma.pushSubscription.deleteMany({ where: { endpoint: sub.endpoint } }).catch(() => {});
+        }
+      }),
+    ),
+  );
+}
 
 export function startNotificationJob() {
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY) {
@@ -57,9 +87,13 @@ export function startNotificationJob() {
 
   setInterval(async () => {
     try {
-      // Load all active tasks with reminders + user subscriptions
+      // Load all active tasks that have reminder enabled OR are marked as important
       const tasks = await prisma.task.findMany({
-        where: { active: true, reminder: true, deletedAt: null },
+        where: {
+          active: true,
+          deletedAt: null,
+          OR: [{ reminder: true }, { important: true }],
+        },
         include: { user: { include: { pushSubscriptions: true } } },
       });
 
@@ -77,7 +111,6 @@ export function startNotificationJob() {
         const subs = userTasks[0].user.pushSubscriptions;
         if (subs.length === 0) continue;
 
-        // Use the timezone stored with the first subscription (all from same user)
         const tz = (subs[0] as { timezone?: string })?.timezone ?? 'UTC';
         const { hours, minutes, dateStr } = nowInZone(tz);
         const nowMin = hours * 60 + minutes;
@@ -87,8 +120,7 @@ export function startNotificationJob() {
           if (nowMin - sentAt > 5) sentThisMinute.delete(key);
         }
 
-        // Build today's occurrences using the shared recurrence engine
-        // This correctly handles weekly, biweekly, monthly_date, monthly_weekday
+        // Build shared taskLikes for recurrence engine
         const taskLikes = userTasks.map(t => ({
           id: t.id,
           title: t.title,
@@ -108,46 +140,101 @@ export function startNotificationJob() {
           monthlyWeek: t.monthlyWeek ?? undefined,
         }));
 
-        const todayOccs = buildWeekOccurrences(taskLikes, mondayOf(dateStr));
-        const todayTaskIds = new Set(
-          todayOccs.filter(o => o.date === dateStr).map(o => o.task.id)
-        );
+        // ── 1. Same-day reminders (reminderMin < 1440) ──────────────────
+        const reminderTasks = userTasks.filter(t => t.reminder && t.reminderMin < 1440);
+        if (reminderTasks.length > 0) {
+          const todayOccs = buildWeekOccurrences(taskLikes, mondayOf(dateStr));
+          const todayTaskIds = new Set(
+            todayOccs.filter(o => o.date === dateStr).map(o => o.task.id)
+          );
 
+          for (const task of reminderTasks) {
+            if (!todayTaskIds.has(task.id)) continue;
+
+            const startMin = timeToMinutes(task.startTime);
+            const reminderAt = startMin - task.reminderMin;
+            if (reminderAt < 0) continue;
+
+            const diff = nowMin - reminderAt;
+            if (diff < 0 || diff > 1) continue;
+
+            const dedupeKey = `${task.id}-${dateStr}-${reminderAt}`;
+            if (sentThisMinute.has(dedupeKey)) continue;
+            sentThisMinute.set(dedupeKey, nowMin);
+
+            console.log(`[push] Reminder "${task.title}" (${task.startTime}, tz=${tz})`);
+            await sendToSubs(subs, JSON.stringify({
+              title: 'Weekly — lembrete',
+              body: `${task.title} às ${task.startTime}`,
+            }));
+          }
+        }
+
+        // ── 2. Day-level reminders (reminderMin >= 1440, e.g. 1 day before) ──
+        const dayLevelTasks = userTasks.filter(t => t.reminder && t.reminderMin >= 1440);
+        if (dayLevelTasks.length > 0) {
+          // Group by reminderDays to call buildWeekOccurrences only once per unique offset
+          const grouped = new Map<number, typeof dayLevelTasks>();
+          for (const task of dayLevelTasks) {
+            const days = Math.floor(task.reminderMin / 1440);
+            grouped.set(days, [...(grouped.get(days) ?? []), task]);
+          }
+
+          for (const [reminderDays, tasks] of grouped) {
+            const targetDate = addDays(dateStr, reminderDays);
+            const futureOccs = buildWeekOccurrences(taskLikes, mondayOf(targetDate));
+            const futureTaskIds = new Set(
+              futureOccs.filter(o => o.date === targetDate).map(o => o.task.id)
+            );
+
+            for (const task of tasks) {
+              if (!futureTaskIds.has(task.id)) continue;
+
+              const startMin = timeToMinutes(task.startTime);
+              const diff = nowMin - startMin;
+              if (diff < 0 || diff > 1) continue;
+
+              const dedupeKey = `day-${task.id}-${dateStr}-${reminderDays}`;
+              if (sentThisMinute.has(dedupeKey)) continue;
+              sentThisMinute.set(dedupeKey, nowMin);
+
+              const timeLabel = reminderDays === 1
+                ? `amanhã às ${task.startTime}`
+                : `em ${reminderDays} dias às ${task.startTime}`;
+
+              console.log(`[push] Day-level reminder "${task.title}" (in ${reminderDays} days, tz=${tz})`);
+              await sendToSubs(subs, JSON.stringify({
+                title: 'Weekly — lembrete',
+                body: `${task.title} ${timeLabel}`,
+              }));
+            }
+          }
+        }
+
+        // ── 3. Countdown for important events ───────────────────────────
         for (const task of userTasks) {
-          if (!todayTaskIds.has(task.id)) continue;
+          if (!task.important || !task.countdownDays || task.type !== 'SCHEDULED' || !task.date) continue;
+
+          const daysUntil = diffDays(task.date, dateStr);
+          if (daysUntil <= 0 || daysUntil > task.countdownDays) continue;
 
           const startMin = timeToMinutes(task.startTime);
-          const reminderAt = startMin - task.reminderMin;
-          if (reminderAt < 0) continue;
+          const diff = nowMin - startMin;
+          if (diff < 0 || diff > 1) continue;
 
-          const diff = nowMin - reminderAt;
-          if (diff < 0 || diff > 1) continue; // 2-minute window
-
-          const dedupeKey = `${task.id}-${dateStr}-${reminderAt}`;
+          const dedupeKey = `countdown-${task.id}-${dateStr}-${daysUntil}`;
           if (sentThisMinute.has(dedupeKey)) continue;
           sentThisMinute.set(dedupeKey, nowMin);
 
-          console.log(`[push] Sending reminder for "${task.title}" (${task.startTime}, tz=${tz}) to ${subs.length} device(s)`);
+          const body = daysUntil === 1
+            ? `falta 1 dia para ${task.title}`
+            : `faltam ${daysUntil} dias para ${task.title}`;
 
-          const payload = JSON.stringify({
-            title: 'Weekly — lembrete',
-            body: `${task.title} às ${task.startTime}`,
-          });
-
-          await Promise.allSettled(
-            subs.map(sub =>
-              webpush.sendNotification(
-                { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-                payload,
-              ).catch(err => {
-                console.error('[push] send failed:', err.message);
-                // Remove expired/invalid subscriptions (410 Gone or 404)
-                if (err.statusCode === 410 || err.statusCode === 404) {
-                  prisma.pushSubscription.deleteMany({ where: { endpoint: sub.endpoint } }).catch(() => {});
-                }
-              }),
-            ),
-          );
+          console.log(`[push] Countdown "${task.title}" (${daysUntil} days left, tz=${tz})`);
+          await sendToSubs(subs, JSON.stringify({
+            title: 'Weekly — evento importante ★',
+            body,
+          }));
         }
       }
     } catch (err) {

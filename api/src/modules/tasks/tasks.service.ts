@@ -20,6 +20,8 @@ export type TaskRecord = {
   monthlyDay?: number | null;
   monthlyWeekday?: number | null;
   monthlyWeek?: number | null;
+  important?: boolean;
+  countdownDays?: number | null;
 };
 
 export async function listTasks(userId: string, type?: 'RECURRING' | 'SCHEDULED', includeDeleted = false) {
@@ -55,6 +57,8 @@ export async function createTask(userId: string, input: Omit<TaskRecord, 'id' | 
       monthlyDay: input.monthlyDay ?? null,
       monthlyWeekday: input.monthlyWeekday ?? null,
       monthlyWeek: input.monthlyWeek ?? null,
+      important: input.important ?? false,
+      countdownDays: input.countdownDays ?? null,
     },
   });
 }
@@ -83,6 +87,8 @@ export async function updateTask(userId: string, id: string, input: Partial<Task
       monthlyDay:     input.monthlyDay     !== undefined ? (input.monthlyDay     ?? null) : undefined,
       monthlyWeekday: input.monthlyWeekday !== undefined ? (input.monthlyWeekday ?? null) : undefined,
       monthlyWeek:    input.monthlyWeek    !== undefined ? (input.monthlyWeek    ?? null) : undefined,
+      important:      input.important,
+      countdownDays:  input.countdownDays  !== undefined ? (input.countdownDays  ?? null) : undefined,
     },
   });
 }

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Bell, CalendarDays, Search, ArrowRight, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Bell, CalendarDays, Search, ArrowRight, X, ChevronDown, ChevronUp, Star } from 'lucide-react';
 import { api } from '../../lib/api';
 import { BottomNav } from '../../components/BottomNav';
 import { TaskRowSkeleton } from '../../components/Skeleton';
@@ -15,10 +15,24 @@ type Event = {
   endTime?: string | null;
   reminder: boolean;
   reminderMin: number;
+  important: boolean;
+  countdownDays?: number | null;
   active: boolean;
   deletedAt?: string | null;
   notes?: string | null;
 };
+
+const REMINDER_OPTIONS: { value: number; label: string }[] = [
+  { value: 5,   label: '5 min antes' },
+  { value: 10,  label: '10 min antes' },
+  { value: 15,  label: '15 min antes' },
+  { value: 30,  label: '30 min antes' },
+  { value: 60,  label: '1 hora antes' },
+  { value: 120, label: '2 horas antes' },
+  { value: 180, label: '3 horas antes' },
+  { value: 360, label: '6 horas antes' },
+  { value: 720, label: '12 horas antes' },
+];
 
 function formatDate(iso: string) {
   const d = new Date(iso + 'T12:00:00');
@@ -44,8 +58,10 @@ type FormData = {
   endTime: string;
   reminder: boolean;
   reminderMin: number;
+  important: boolean;
+  countdownDays: number;
 };
-const EMPTY: FormData = { title: '', notes: '', date: todayISO(), endDate: '', startTime: '09:00', endTime: '', reminder: true, reminderMin: 60 };
+const EMPTY: FormData = { title: '', notes: '', date: todayISO(), endDate: '', startTime: '09:00', endTime: '', reminder: true, reminderMin: 60, important: false, countdownDays: 7 };
 
 function EventModal({ event, onClose }: { event: Event | null; onClose: () => void }) {
   const qc = useQueryClient();
@@ -62,6 +78,8 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
           endTime: event.endTime ?? '',
           reminder: event.reminder,
           reminderMin: event.reminderMin,
+          important: event.important ?? false,
+          countdownDays: event.countdownDays ?? 7,
         }
       : EMPTY,
   );
@@ -111,6 +129,8 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
       endTime: form.endTime || undefined,
       reminder: form.reminder,
       reminderMin: form.reminderMin,
+      important: form.important,
+      countdownDays: form.important ? form.countdownDays : null,
       active: true,
     });
   }
@@ -177,7 +197,8 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
             </div>
           </div>
 
-          <div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {/* Lembrete */}
             <div className="toggle-row">
               <div>
                 <div className="toggle-label">Lembrete</div>
@@ -189,11 +210,39 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
               </label>
             </div>
             {form.reminder && (
-              <div className="field" style={{ marginTop: 8 }}>
-                <label className="label">Antecedência</label>
+              <div className="field" style={{ marginTop: 4, marginBottom: 4 }}>
                 <select className="select" value={form.reminderMin} onChange={(e) => setForm({ ...form, reminderMin: Number(e.target.value) })}>
-                  {[5, 10, 15, 30, 60, 120].map((m) => (
-                    <option key={m} value={m}>{m} min antes</option>
+                  {REMINDER_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Evento Importante */}
+            <div className="toggle-row" style={{ marginTop: form.reminder ? 6 : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <Star
+                  size={14}
+                  strokeWidth={2}
+                  color="var(--warning, #f59e0b)"
+                  fill={form.important ? 'var(--warning, #f59e0b)' : 'none'}
+                />
+                <div>
+                  <div className="toggle-label">Evento importante</div>
+                  <div className="toggle-desc">Contagem regressiva diária</div>
+                </div>
+              </div>
+              <label className="toggle">
+                <input type="checkbox" checked={form.important} onChange={(e) => setForm({ ...form, important: e.target.checked })} />
+                <div className="toggle-track" />
+              </label>
+            </div>
+            {form.important && (
+              <div className="field" style={{ marginTop: 4 }}>
+                <select className="select" value={form.countdownDays} onChange={(e) => setForm({ ...form, countdownDays: Number(e.target.value) })}>
+                  {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                    <option key={d} value={d}>{d === 1 ? 'Avisar 1 dia antes' : `Avisar ${d} dias antes`}</option>
                   ))}
                 </select>
               </div>
