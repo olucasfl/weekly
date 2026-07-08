@@ -10,16 +10,17 @@ export const pushRoutes: FastifyPluginAsync = async (app) => {
     const userId = request.user?.sub;
     if (!userId) return reply.code(401).send({ statusCode: 401, message: 'Não autenticado' });
 
-    const { endpoint, p256dh, auth } = z.object({
+    const { endpoint, p256dh, auth, timezone } = z.object({
       endpoint: z.string(),
       p256dh: z.string(),
       auth: z.string(),
+      timezone: z.string().default('UTC'),
     }).parse(request.body);
 
     await prisma.pushSubscription.upsert({
       where: { endpoint },
-      create: { userId, endpoint, p256dh, auth },
-      update: { userId, p256dh, auth },
+      create: { userId, endpoint, p256dh, auth, timezone },
+      update: { userId, p256dh, auth, timezone },
     });
 
     return reply.code(201).send({ ok: true });

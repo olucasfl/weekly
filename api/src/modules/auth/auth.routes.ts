@@ -27,9 +27,8 @@ const loginInputSchema = z.object({
   password: z.string().min(6),
 });
 
-const RATE_LIMIT_AUTH = {
-  config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
-};
+const RATE_LIMIT_AUTH   = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } };
+const RATE_LIMIT_STRICT = { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } };
 
 export const authRoutes: FastifyPluginAsync = async (app) => {
   app.post('/register', RATE_LIMIT_AUTH, async (request, reply) => {
@@ -62,7 +61,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
-  app.post('/refresh', async (request, reply) => {
+  app.post('/refresh', RATE_LIMIT_STRICT, async (request, reply) => {
     const { refreshToken } = request.body as { refreshToken?: string };
     try {
       const result = await refreshAccessToken(refreshToken ?? '');
@@ -92,7 +91,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     }
   });
 
-  app.post('/resend-verification', async (request, reply) => {
+  app.post('/resend-verification', RATE_LIMIT_AUTH, async (request, reply) => {
     const { email } = request.body as { email?: string };
     if (!email) return reply.code(400).send({ statusCode: 400, message: 'Email ausente' });
     await resendVerification(email);
@@ -107,7 +106,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ success: true });
   });
 
-  app.post('/reset-password', async (request, reply) => {
+  app.post('/reset-password', RATE_LIMIT_AUTH, async (request, reply) => {
     const { token, password } = request.body as { token?: string; password?: string };
     if (!token || !password) return reply.code(400).send({ statusCode: 400, message: 'Dados ausentes' });
     if (password.length < 6) return reply.code(400).send({ statusCode: 400, message: 'Senha muito curta' });

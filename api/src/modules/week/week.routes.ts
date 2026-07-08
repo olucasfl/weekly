@@ -8,9 +8,13 @@ export const weekRoutes: FastifyPluginAsync = async (app) => {
     if (!userId) return reply.code(401).send({ statusCode: 401, message: 'Não autenticado' });
 
     const start = (request.query as { start?: string }).start ?? new Date().toISOString().slice(0, 10);
+    const weekEnd = new Date(start + 'T12:00:00Z');
+    weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
+    const end = weekEnd.toISOString().slice(0, 10);
+
     const [tasks, extraOccurrences] = await Promise.all([
       listTasks(userId, undefined, true),
-      getExtraOccurrencesForUser(userId),
+      getExtraOccurrencesForUser(userId, start, end),
     ]);
 
     const extraByTaskId = new Map<string, string[]>();

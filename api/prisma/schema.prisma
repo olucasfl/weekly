@@ -13,9 +13,10 @@ model User {
   email             String             @unique
   password          String
   emailVerified     Boolean            @default(false)
-  verificationToken  String?            @unique
-  resetToken         String?            @unique
-  resetTokenExpiry   DateTime?
+  verificationToken       String?   @unique
+  verificationTokenExpiry DateTime?
+  resetToken              String?   @unique
+  resetTokenExpiry        DateTime?
   pendingEmail       String?
   pendingEmailToken  String?            @unique
   pendingEmailExpiry DateTime?
@@ -132,6 +133,7 @@ model PushSubscription {
   endpoint  String   @unique
   p256dh    String
   auth      String
+  timezone  String   @default("UTC")
   createdAt DateTime @default(now())
 
   @@index([userId])

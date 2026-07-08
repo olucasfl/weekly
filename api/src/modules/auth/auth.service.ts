@@ -21,6 +21,7 @@ export async function registerUser(input: { name: string; email: string; passwor
   }
 
   const verificationToken = generateToken();
+  const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
 
   const user = await prisma.user.create({
     data: {
@@ -29,6 +30,7 @@ export async function registerUser(input: { name: string; email: string; passwor
       password: await hashPassword(input.password),
       emailVerified: false,
       verificationToken,
+      verificationTokenExpiry,
     },
   });
 
@@ -39,14 +41,15 @@ export async function registerUser(input: { name: string; email: string; passwor
 
 export async function verifyEmail(token: string) {
   const user = await prisma.user.findUnique({ where: { verificationToken: token } });
-  if (!user) {
+  if (!user) throw new Error('Link inválido ou expirado');
+  if (user.verificationTokenExpiry && user.verificationTokenExpiry < new Date()) {
     throw new Error('Link inválido ou expirado');
   }
 
   if (!user.emailVerified) {
     await prisma.user.update({
       where: { id: user.id },
-      data: { emailVerified: true },
+      data: { emailVerified: true, verificationToken: null, verificationTokenExpiry: null },
     });
   }
 
@@ -83,7 +86,8 @@ export async function resendVerification(email: string) {
   if (!user || user.emailVerified) return; // silencioso por segurança
 
   const verificationToken = generateToken();
-  await prisma.user.update({ where: { id: user.id }, data: { verificationToken } });
+  const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  await prisma.user.update({ where: { id: user.id }, data: { verificationToken, verificationTokenExpiry } });
   await sendVerificationEmail(user.email, user.name, verificationToken);
 }
 

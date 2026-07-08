@@ -2,6 +2,10 @@ import { prisma } from '../../lib/prisma.js';
 import { buildWeekOccurrences } from '../../../../shared/src/recurrence.js';
 import { getGoalsSummary } from '../goals/goals.service.js';
 
+// In-memory streak cache: userId → { value, expiry }
+const streakCache = new Map<string, { value: number; expiry: number }>();
+const STREAK_TTL = 5 * 60 * 1000; // 5 minutes
+
 export async function getDashboard(userId: string, weekStart: string) {
   const weekEnd = offsetDate(weekStart, 6);
 
@@ -76,6 +80,9 @@ export async function getDashboard(userId: string, weekStart: string) {
 }
 
 async function computeStreak(userId: string, _weekStart: string): Promise<number> {
+  const cached = streakCache.get(userId);
+  if (cached && cached.expiry > Date.now()) return cached.value;
+
   const tasks = await prisma.task.findMany({ where: { userId, active: true } });
   if (tasks.length === 0) return 0;
 
@@ -122,6 +129,7 @@ async function computeStreak(userId: string, _weekStart: string): Promise<number
     streak++;
   }
 
+  streakCache.set(userId, { value: streak, expiry: Date.now() + STREAK_TTL });
   return streak;
 }
 

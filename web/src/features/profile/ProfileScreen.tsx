@@ -327,9 +327,10 @@ export function ProfileScreen() {
           applicationServerKey: urlBase64ToUint8Array(publicKey),
         });
         const json = sub.toJSON();
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC';
         await api('/push/subscribe', {
           method: 'POST',
-          body: JSON.stringify({ endpoint: sub.endpoint, p256dh: json.keys?.p256dh, auth: json.keys?.auth }),
+          body: JSON.stringify({ endpoint: sub.endpoint, p256dh: json.keys?.p256dh, auth: json.keys?.auth, timezone }),
         });
         setPushEnabled(true);
       }

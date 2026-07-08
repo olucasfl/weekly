@@ -66,23 +66,23 @@ export async function updateTask(userId: string, id: string, input: Partial<Task
   return prisma.task.update({
     where: { id },
     data: {
-      title: input.title,
-      type: input.type,
-      weekdays: input.weekdays,
-      date: input.date !== undefined ? (input.date ?? null) : undefined,
-      endDate: input.endDate !== undefined ? (input.endDate ?? null) : undefined,
-      startTime: input.startTime,
-      endTime: input.endTime ?? null,
-      reminder: input.reminder,
-      reminderMin: input.reminderMin,
-      active: input.active,
-      notes: input.notes ?? undefined,
-      categoryId: input.categoryId ?? null,
+      title:          input.title,
+      type:           input.type,
+      weekdays:       input.weekdays,
+      date:           input.date           !== undefined ? (input.date           ?? null) : undefined,
+      endDate:        input.endDate        !== undefined ? (input.endDate        ?? null) : undefined,
+      startTime:      input.startTime,
+      endTime:        input.endTime        !== undefined ? (input.endTime        ?? null) : undefined,
+      reminder:       input.reminder,
+      reminderMin:    input.reminderMin,
+      active:         input.active,
+      notes:          input.notes          !== undefined ? (input.notes          ?? null) : undefined,
+      categoryId:     input.categoryId     !== undefined ? (input.categoryId     ?? null) : undefined,
       recurrenceType: input.recurrenceType,
-      biweeklyAnchor: input.biweeklyAnchor ?? null,
-      monthlyDay: input.monthlyDay ?? null,
-      monthlyWeekday: input.monthlyWeekday ?? null,
-      monthlyWeek: input.monthlyWeek ?? null,
+      biweeklyAnchor: input.biweeklyAnchor !== undefined ? (input.biweeklyAnchor ?? null) : undefined,
+      monthlyDay:     input.monthlyDay     !== undefined ? (input.monthlyDay     ?? null) : undefined,
+      monthlyWeekday: input.monthlyWeekday !== undefined ? (input.monthlyWeekday ?? null) : undefined,
+      monthlyWeek:    input.monthlyWeek    !== undefined ? (input.monthlyWeek    ?? null) : undefined,
     },
   });
 }
@@ -115,10 +115,12 @@ export async function addExtraOccurrence(userId: string, taskId: string, date: s
   return { success: true };
 }
 
-export async function getExtraOccurrencesForUser(userId: string) {
+export async function getExtraOccurrencesForUser(userId: string, from: string, to: string) {
   return prisma.$queryRaw<{ id: string; userId: string; taskId: string; date: string }[]>`
     SELECT "id", "userId", "taskId", "date"
     FROM "ExtraOccurrence"
     WHERE "userId" = ${userId}
+      AND "date" >= ${from}
+      AND "date" <= ${to}
   `;
 }

@@ -1,17 +1,46 @@
 import webpush from 'web-push';
 import { prisma } from '../lib/prisma.js';
 import { env } from '../env.js';
-
-function pad(n: number) { return String(n).padStart(2, '0'); }
+import { buildWeekOccurrences } from '../../../shared/src/recurrence.js';
 
 function timeToMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(':').map(Number);
   return h * 60 + m;
 }
 
-function currentTimeMinutes(): number {
+function mondayOf(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00Z');
+  const day = d.getUTCDay();
+  const diff = (day + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - diff);
+  return d.toISOString().slice(0, 10);
+}
+
+// Returns current {hours, minutes, dateStr} in the given IANA timezone
+function nowInZone(tz: string): { hours: number; minutes: number; dateStr: string } {
   const now = new Date();
-  return now.getHours() * 60 + now.getMinutes();
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit',
+      hour12: false,
+    }).formatToParts(now);
+    const get = (type: string) => parts.find(p => p.type === type)?.value ?? '0';
+    const hours = parseInt(get('hour')) % 24; // normalize 24→0
+    return {
+      hours,
+      minutes: parseInt(get('minute')),
+      dateStr: `${get('year')}-${get('month')}-${get('day')}`,
+    };
+  } catch {
+    // Invalid timezone fallback to UTC
+    return {
+      hours: now.getUTCHours(),
+      minutes: now.getUTCMinutes(),
+      dateStr: now.toISOString().slice(0, 10),
+    };
+  }
 }
 
 // Tracks sent notifications to avoid duplicates within the same minute window
@@ -28,64 +57,101 @@ export function startNotificationJob() {
 
   setInterval(async () => {
     try {
-      const now = new Date();
-      const nowMin = currentTimeMinutes();
-      const today = now.toISOString().slice(0, 10);
-      const todayWeekday = now.getDay();
-
-      // Clean up old sent records (older than 5 minutes)
-      for (const [key, sentAt] of sentThisMinute) {
-        if (nowMin - sentAt > 5) sentThisMinute.delete(key);
-      }
-
+      // Load all active tasks with reminders + user subscriptions
       const tasks = await prisma.task.findMany({
-        where: { active: true, reminder: true },
+        where: { active: true, reminder: true, deletedAt: null },
         include: { user: { include: { pushSubscriptions: true } } },
       });
 
-      for (const task of tasks) {
-        const fires =
-          (task.type === 'RECURRING' && task.weekdays.includes(todayWeekday)) ||
-          (task.type === 'SCHEDULED' && task.date === today);
+      if (tasks.length === 0) return;
 
-        if (!fires) continue;
+      // Group by userId so we run recurrence logic once per user
+      const byUser = new Map<string, typeof tasks>();
+      for (const t of tasks) {
+        const list = byUser.get(t.userId) ?? [];
+        list.push(t);
+        byUser.set(t.userId, list);
+      }
 
-        const startMin = timeToMinutes(task.startTime);
-        const reminderMin = startMin - task.reminderMin;
-        if (reminderMin < 0) continue;
+      for (const [, userTasks] of byUser) {
+        const subs = userTasks[0].user.pushSubscriptions;
+        if (subs.length === 0) continue;
 
-        // Match within a 2-minute window to handle drift/restart
-        const diff = nowMin - reminderMin;
-        if (diff < 0 || diff > 1) continue;
+        // Use the timezone stored with the first subscription (all from same user)
+        const tz = (subs[0] as { timezone?: string })?.timezone ?? 'UTC';
+        const { hours, minutes, dateStr } = nowInZone(tz);
+        const nowMin = hours * 60 + minutes;
 
-        const dedupeKey = `${task.id}-${reminderMin}`;
-        if (sentThisMinute.has(dedupeKey)) continue;
-        sentThisMinute.set(dedupeKey, nowMin);
-
-        const subs = task.user.pushSubscriptions;
-        if (subs.length === 0) {
-          console.log(`[push] No subscriptions for user ${task.user.id}`);
-          continue;
+        // Clean stale dedupe entries (older than 5 minutes)
+        for (const [key, sentAt] of sentThisMinute) {
+          if (nowMin - sentAt > 5) sentThisMinute.delete(key);
         }
 
-        console.log(`[push] Sending reminder for "${task.title}" (${task.startTime}) to ${subs.length} device(s)`);
+        // Build today's occurrences using the shared recurrence engine
+        // This correctly handles weekly, biweekly, monthly_date, monthly_weekday
+        const taskLikes = userTasks.map(t => ({
+          id: t.id,
+          title: t.title,
+          type: t.type as 'RECURRING' | 'SCHEDULED',
+          weekdays: t.weekdays,
+          date: t.date ?? undefined,
+          endDate: t.endDate ?? undefined,
+          startTime: t.startTime,
+          endTime: t.endTime ?? undefined,
+          reminder: t.reminder,
+          reminderMin: t.reminderMin,
+          active: t.active,
+          recurrenceType: t.recurrenceType,
+          biweeklyAnchor: t.biweeklyAnchor ?? undefined,
+          monthlyDay: t.monthlyDay ?? undefined,
+          monthlyWeekday: t.monthlyWeekday ?? undefined,
+          monthlyWeek: t.monthlyWeek ?? undefined,
+        }));
 
-        const payload = JSON.stringify({
-          title: 'Weekly — lembrete',
-          body: `${task.title} às ${task.startTime}`,
-        });
-
-        await Promise.allSettled(
-          subs.map((sub) =>
-            webpush.sendNotification(
-              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-              payload,
-            ).catch((err) => console.error('[push] send failed:', err.message)),
-          ),
+        const todayOccs = buildWeekOccurrences(taskLikes, mondayOf(dateStr));
+        const todayTaskIds = new Set(
+          todayOccs.filter(o => o.date === dateStr).map(o => o.task.id)
         );
+
+        for (const task of userTasks) {
+          if (!todayTaskIds.has(task.id)) continue;
+
+          const startMin = timeToMinutes(task.startTime);
+          const reminderAt = startMin - task.reminderMin;
+          if (reminderAt < 0) continue;
+
+          const diff = nowMin - reminderAt;
+          if (diff < 0 || diff > 1) continue; // 2-minute window
+
+          const dedupeKey = `${task.id}-${dateStr}-${reminderAt}`;
+          if (sentThisMinute.has(dedupeKey)) continue;
+          sentThisMinute.set(dedupeKey, nowMin);
+
+          console.log(`[push] Sending reminder for "${task.title}" (${task.startTime}, tz=${tz}) to ${subs.length} device(s)`);
+
+          const payload = JSON.stringify({
+            title: 'Weekly — lembrete',
+            body: `${task.title} às ${task.startTime}`,
+          });
+
+          await Promise.allSettled(
+            subs.map(sub =>
+              webpush.sendNotification(
+                { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+                payload,
+              ).catch(err => {
+                console.error('[push] send failed:', err.message);
+                // Remove expired/invalid subscriptions (410 Gone or 404)
+                if (err.statusCode === 410 || err.statusCode === 404) {
+                  prisma.pushSubscription.deleteMany({ where: { endpoint: sub.endpoint } }).catch(() => {});
+                }
+              }),
+            ),
+          );
+        }
       }
     } catch (err) {
       console.error('[push] job error:', err);
     }
-  }, 30_000); // Roda a cada 30s para não perder janelas
+  }, 30_000);
 }

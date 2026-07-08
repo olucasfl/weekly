@@ -618,7 +618,7 @@ export function WeekScreen() {
 
       {toastError && (
         <div style={{
-          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)',
+          position: 'fixed', bottom: 'calc(68px + env(safe-area-inset-bottom) + 12px)', left: '50%', transform: 'translateX(-50%)',
           background: '#ef4444', color: '#fff', borderRadius: 10, padding: '10px 18px',
           fontSize: '0.85rem', fontWeight: 600, zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
           whiteSpace: 'nowrap', pointerEvents: 'none',

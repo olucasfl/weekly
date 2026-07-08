@@ -2,6 +2,7 @@ import Fastify from 'fastify';
 import { serializerCompiler, validatorCompiler, ZodTypeProvider } from 'fastify-type-provider-zod';
 import fastifyCors from '@fastify/cors';
 import fastifyCookie from '@fastify/cookie';
+import fastifyHelmet from '@fastify/helmet';
 import fastifyRateLimit from '@fastify/rate-limit';
 
 import { env } from './env.js';
@@ -25,6 +26,8 @@ export async function buildApp() {
   app.setSerializerCompiler(serializerCompiler);
 
   await app.register(fastifyCookie);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await app.register(fastifyHelmet as any, { contentSecurityPolicy: false });
   await app.register(fastifyCors, { origin: env.CORS_ORIGIN.split(',') });
   await app.register(fastifyRateLimit, {
     global: false, // só aplica em rotas que optarem

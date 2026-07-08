@@ -27,29 +27,34 @@ function createSignedToken(payload: Record<string, unknown>, secret: string) {
 
 function verifySignedToken(token: string, secret: string) {
   const parts = token.split('.');
-  if (parts.length !== 3) {
-    return null;
-  }
+  if (parts.length !== 3) return null;
 
   const [header, body, signature] = parts;
   const expectedSignature = crypto.createHmac('sha256', secret).update(`${header}.${body}`).digest('base64url');
-  if (signature !== expectedSignature) {
-    return null;
-  }
+  if (signature !== expectedSignature) return null;
 
   try {
-    return JSON.parse(fromBase64Url(body)) as Record<string, unknown>;
+    const payload = JSON.parse(fromBase64Url(body)) as Record<string, unknown>;
+    if (typeof payload.exp === 'number' && payload.exp < Math.floor(Date.now() / 1000)) {
+      return null; // expired
+    }
+    return payload;
   } catch {
     return null;
   }
 }
 
+const ACCESS_TTL  = 15 * 60;          // 15 minutes
+const REFRESH_TTL = 30 * 24 * 60 * 60; // 30 days
+
 export function createAccessToken(payload: Record<string, unknown>) {
-  return createSignedToken(payload, env.JWT_SECRET);
+  const now = Math.floor(Date.now() / 1000);
+  return createSignedToken({ ...payload, iat: now, exp: now + ACCESS_TTL }, env.JWT_SECRET);
 }
 
 export function createRefreshToken(payload: Record<string, unknown>) {
-  return createSignedToken(payload, env.JWT_REFRESH_SECRET);
+  const now = Math.floor(Date.now() / 1000);
+  return createSignedToken({ ...payload, iat: now, exp: now + REFRESH_TTL }, env.JWT_REFRESH_SECRET);
 }
 
 export function verifyAccessToken(token: string) {
