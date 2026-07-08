@@ -388,6 +388,7 @@ export function WeekScreen() {
                       <button
                         className={`task-check${item.done ? ' checked' : ''}`}
                         style={{ touchAction: 'manipulation' }}
+                        onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); onToggle(item.taskId, item.date, !item.done); }}
                         onClick={() => onToggle(item.taskId, item.date, !item.done)}
                         aria-label={item.done ? 'Desmarcar' : 'Marcar como feito'}
                       >
@@ -434,6 +435,7 @@ export function WeekScreen() {
                     <button
                       className={`task-check${item.done ? ' checked' : ''}`}
                       style={{ touchAction: 'manipulation' }}
+                      onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); onToggle(item.taskId, item.date, !item.done); }}
                       onClick={() => onToggle(item.taskId, item.date, !item.done)}
                       aria-label={item.done ? 'Desmarcar' : 'Marcar como feito'}
                     >

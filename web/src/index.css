@@ -218,8 +218,11 @@ body::before {
   transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
   -webkit-user-select: none; user-select: none;
 }
-.task-row:hover  { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
-.task-row.done   { opacity: 0.5; background: var(--bg-surface-2); }
+/* hover only on real pointer devices — avoids iOS double-tap to trigger */
+@media (hover: hover) and (pointer: fine) {
+  .task-row:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+}
+.task-row.done { opacity: 0.5; background: var(--bg-surface-2); }
 .task-check:active { transform: scale(0.9); }
 
 .task-check {
