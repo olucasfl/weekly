@@ -17,6 +17,7 @@ export type TaskLike = {
   monthlyDay?: number | null;
   monthlyWeekday?: number | null;
   monthlyWeek?: number | null;
+  yearlyMonth?: number | null;
   deletedAt?: string | null;
   notes?: string | null;
   extraDays?: string[];
@@ -115,6 +116,18 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
         d.setDate(start.getDate() + i);
         const dateStr = d.toISOString().slice(0, 10);
         if (d.getDate() === task.monthlyDay && notDeleted(deletedDate, dateStr)
+          && (!taskStartDate || dateStr >= taskStartDate)) {
+          occurrences.push({ task, date: dateStr });
+          break;
+        }
+      }
+    } else if (rtype === 'yearly' && task.monthlyDay != null && task.yearlyMonth != null) {
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(start);
+        d.setDate(start.getDate() + i);
+        const dateStr = d.toISOString().slice(0, 10);
+        if (d.getMonth() + 1 === task.yearlyMonth && d.getDate() === task.monthlyDay
+          && notDeleted(deletedDate, dateStr)
           && (!taskStartDate || dateStr >= taskStartDate)) {
           occurrences.push({ task, date: dateStr });
           break;

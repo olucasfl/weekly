@@ -28,6 +28,35 @@ function diffDays(futureDateStr: string, todayStr: string): number {
   return Math.round((a.getTime() - b.getTime()) / (86400 * 1000));
 }
 
+function nextMonthlyDateOccurrence(day: number, todayStr: string): string {
+  const today = new Date(todayStr + 'T12:00:00Z');
+  const year = today.getUTCFullYear();
+  const month = today.getUTCMonth();
+  const todayDay = today.getUTCDate();
+  const daysThis = new Date(year, month + 1, 0).getDate();
+  const effectiveThis = Math.min(day, daysThis);
+  if (effectiveThis >= todayDay) {
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(effectiveThis).padStart(2, '0')}`;
+  }
+  const nm = month + 1;
+  const ny = nm === 12 ? year + 1 : year;
+  const nmi = nm % 12;
+  const daysNext = new Date(ny, nmi + 1, 0).getDate();
+  return `${ny}-${String(nmi + 1).padStart(2, '0')}-${String(Math.min(day, daysNext)).padStart(2, '0')}`;
+}
+
+function nextYearlyOccurrence(month: number, day: number, todayStr: string): string {
+  const today = new Date(todayStr + 'T12:00:00Z');
+  const year = today.getUTCFullYear();
+  const isLeap = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  const effectDay = (month === 2 && day === 29 && !isLeap(year)) ? 28 : day;
+  const thisYear = `${year}-${String(month).padStart(2, '0')}-${String(effectDay).padStart(2, '0')}`;
+  if (thisYear >= todayStr) return thisYear;
+  const ny = year + 1;
+  const nextDay = (month === 2 && day === 29 && !isLeap(ny)) ? 28 : day;
+  return `${ny}-${String(month).padStart(2, '0')}-${String(nextDay).padStart(2, '0')}`;
+}
+
 // Returns current {hours, minutes, dateStr} in the given IANA timezone
 function nowInZone(tz: string): { hours: number; minutes: number; dateStr: string } {
   const now = new Date();
@@ -138,6 +167,8 @@ export function startNotificationJob() {
           monthlyDay: t.monthlyDay ?? undefined,
           monthlyWeekday: t.monthlyWeekday ?? undefined,
           monthlyWeek: t.monthlyWeek ?? undefined,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          yearlyMonth: (t as any).yearlyMonth ?? undefined,
         }));
 
         // ── 1. Same-day reminders (reminderMin < 1440) ──────────────────
@@ -213,9 +244,20 @@ export function startNotificationJob() {
 
         // ── 3. Countdown for important events ───────────────────────────
         for (const task of userTasks) {
-          if (!task.important || !task.countdownDays || task.type !== 'SCHEDULED' || !task.date) continue;
+          if (!task.important || !task.countdownDays) continue;
 
-          const daysUntil = diffDays(task.date, dateStr);
+          let targetDate: string | null = null;
+          if (task.type === 'SCHEDULED' && task.date) {
+            targetDate = task.date;
+          } else if (task.recurrenceType === 'monthly_date' && task.monthlyDay) {
+            targetDate = nextMonthlyDateOccurrence(task.monthlyDay, dateStr);
+          } else if (task.recurrenceType === 'yearly' && task.monthlyDay && (task as unknown as { yearlyMonth?: number }).yearlyMonth) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            targetDate = nextYearlyOccurrence((task as any).yearlyMonth, task.monthlyDay, dateStr);
+          }
+          if (!targetDate) continue;
+
+          const daysUntil = diffDays(targetDate, dateStr);
           if (daysUntil <= 0 || daysUntil > task.countdownDays) continue;
 
           const startMin = timeToMinutes(task.startTime);

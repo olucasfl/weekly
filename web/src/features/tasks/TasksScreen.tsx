@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Bell, BellOff, CircleDot, CircleOff, CheckSquare, Check, Search, X } from 'lucide-react';
+import { Plus, Bell, BellOff, CircleDot, CircleOff, CheckSquare, Check, Search, X, Star } from 'lucide-react';
 import { api } from '../../lib/api';
 import { BottomNav } from '../../components/BottomNav';
 import { TaskRowSkeleton } from '../../components/Skeleton';
@@ -17,11 +17,15 @@ type Task = {
   endTime?: string | null;
   reminder: boolean;
   reminderMin: number;
+  important?: boolean;
+  countdownDays?: number | null;
   active: boolean;
   notes?: string | null;
   categoryId?: string | null;
   category?: Category | null;
   recurrenceType?: string;
+  monthlyDay?: number | null;
+  yearlyMonth?: number | null;
 };
 
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
@@ -139,14 +143,20 @@ function CategoryModal({ category, onClose }: { category: Category | null; onClo
 }
 
 // ─── TaskModal ─────────────────────────────────────────────────────
-type RecurrenceType = 'weekly' | 'biweekly' | 'monthly_date' | 'monthly_weekday';
+type RecurrenceType = 'weekly' | 'biweekly' | 'monthly_date' | 'monthly_weekday' | 'yearly';
 
 const RECURRENCE_LABELS: Record<RecurrenceType, string> = {
   weekly: 'Semanal',
   biweekly: 'Quinzenal (a cada 2 semanas)',
-  monthly_date: 'Mensal — mesmo dia do mês',
+  monthly_date: 'Mensal — dia específico do mês',
   monthly_weekday: 'Mensal — mesmo dia da semana',
+  yearly: 'Anual — data específica',
 };
+
+const MONTH_OPTIONS = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
 
 const WEEK_LABELS = ['1ª', '2ª', '3ª', '4ª', 'Última'];
 const WEEK_VALUES = [1, 2, 3, 4, -1];
@@ -166,6 +176,10 @@ type FormData = {
   active: boolean;
   categoryId: string | null;
   recurrenceType: RecurrenceType;
+  monthlyDay: number;
+  yearlyMonth: number;
+  important: boolean;
+  countdownDays: number;
 };
 
 const EMPTY_FORM: FormData = {
@@ -179,6 +193,10 @@ const EMPTY_FORM: FormData = {
   active: true,
   categoryId: null,
   recurrenceType: 'weekly',
+  monthlyDay: new Date().getDate(),
+  yearlyMonth: new Date().getMonth() + 1,
+  important: false,
+  countdownDays: 7,
 };
 
 function TaskModal({ task, categories, onClose }: { task: Task | null; categories: Category[]; onClose: () => void }) {
@@ -199,6 +217,10 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
           active: task.active,
           categoryId: task.categoryId ?? null,
           recurrenceType: (task.recurrenceType as RecurrenceType) ?? 'weekly',
+          monthlyDay: task.monthlyDay ?? new Date().getDate(),
+          yearlyMonth: task.yearlyMonth ?? (new Date().getMonth() + 1),
+          important: task.important ?? false,
+          countdownDays: task.countdownDays ?? 7,
         }
       : EMPTY_FORM,
   );
@@ -230,10 +252,17 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
     if (form.recurrenceType === 'biweekly') {
       extra.biweeklyAnchor = now.toISOString().slice(0, 10);
     } else if (form.recurrenceType === 'monthly_date') {
-      extra.monthlyDay = now.getDate();
+      extra.monthlyDay = form.monthlyDay;
+      extra.important = form.important;
+      extra.countdownDays = form.important ? form.countdownDays : null;
     } else if (form.recurrenceType === 'monthly_weekday') {
       extra.monthlyWeekday = now.getDay();
       extra.monthlyWeek = getNthWeekday(now);
+    } else if (form.recurrenceType === 'yearly') {
+      extra.monthlyDay = form.monthlyDay;
+      extra.yearlyMonth = form.yearlyMonth;
+      extra.important = form.important;
+      extra.countdownDays = form.important ? form.countdownDays : null;
     }
 
     const today = new Date();
@@ -267,7 +296,7 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
       <div className="modal">
         <div className="modal-handle" />
         <div className="modal-header">
-          <span className="modal-title">{isEdit ? 'Editar afazer' : 'Novo afazer'}</span>
+          <span className="modal-title">{isEdit ? 'Editar rotina' : 'Nova rotina'}</span>
           <button className="modal-close" onClick={onClose} aria-label="Fechar"><X size={18} /></button>
         </div>
 
@@ -289,11 +318,54 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
                 <option key={v} value={v}>{l}</option>
               ))}
             </select>
-            {(form.recurrenceType === 'monthly_date' || form.recurrenceType === 'monthly_weekday') && (
+
+            {form.recurrenceType === 'monthly_date' && (
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label className="label">Dia do mês</label>
+                <select className="select" value={form.monthlyDay} onChange={(e) => setForm({ ...form, monthlyDay: Number(e.target.value) })}>
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                    <option key={d} value={d}>Dia {d}</option>
+                  ))}
+                </select>
+                {form.monthlyDay > 28 && (
+                  <div className="text-xs text-muted" style={{ marginTop: 2 }}>
+                    Meses com menos dias vão pular esta data
+                  </div>
+                )}
+              </div>
+            )}
+
+            {form.recurrenceType === 'monthly_weekday' && (
               <div className="text-xs text-muted" style={{ marginTop: 4 }}>
-                {form.recurrenceType === 'monthly_date'
-                  ? `Toda o dia ${new Date().getDate()} de cada mês`
-                  : `${WEEK_LABELS[Math.min(getNthWeekday(new Date()) - 1, 4)]} ${DAY_NAMES_FULL[new Date().getDay()]} de cada mês`}
+                {`${WEEK_LABELS[Math.min(getNthWeekday(new Date()) - 1, 4)]} ${DAY_NAMES_FULL[new Date().getDay()]} de cada mês`}
+              </div>
+            )}
+
+            {form.recurrenceType === 'yearly' && (
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label className="label">Mês</label>
+                    <select className="select" value={form.yearlyMonth} onChange={(e) => setForm({ ...form, yearlyMonth: Number(e.target.value) })}>
+                      {MONTH_OPTIONS.map((m, i) => (
+                        <option key={i + 1} value={i + 1}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field" style={{ marginBottom: 0 }}>
+                    <label className="label">Dia</label>
+                    <select className="select" value={form.monthlyDay} onChange={(e) => setForm({ ...form, monthlyDay: Number(e.target.value) })}>
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                {form.yearlyMonth === 2 && form.monthlyDay > 28 && (
+                  <div className="text-xs text-muted">
+                    Fevereiro tem 28 dias (29 em ano bissexto) — dias maiores usarão o dia 28
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -382,6 +454,33 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
             )}
           </div>
 
+          {(form.recurrenceType === 'monthly_date' || form.recurrenceType === 'yearly') && (
+            <div>
+              <div className="toggle-row">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                  <Star size={14} strokeWidth={2} color="var(--warning, #f59e0b)" fill={form.important ? 'var(--warning, #f59e0b)' : 'none'} />
+                  <div>
+                    <div className="toggle-label">Evento importante</div>
+                    <div className="toggle-desc">Contagem regressiva diária</div>
+                  </div>
+                </div>
+                <label className="toggle">
+                  <input type="checkbox" checked={form.important} onChange={(e) => setForm({ ...form, important: e.target.checked })} />
+                  <div className="toggle-track" />
+                </label>
+              </div>
+              {form.important && (
+                <div className="field" style={{ marginTop: 4 }}>
+                  <select className="select" value={form.countdownDays} onChange={(e) => setForm({ ...form, countdownDays: Number(e.target.value) })}>
+                    {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                      <option key={d} value={d}>{d === 1 ? 'Avisar 1 dia antes' : `Avisar ${d} dias antes`}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="toggle-row">
             <div>
               <div className="toggle-label">Ativo</div>
@@ -444,7 +543,7 @@ export function TasksScreen() {
       <div className="screen-header">
         <div className="row-between">
           <div>
-            <div className="screen-title">Afazeres</div>
+            <div className="screen-title">Rotinas</div>
             <div className="screen-subtitle">Tarefas que se repetem na semana</div>
           </div>
           <button
@@ -493,7 +592,7 @@ export function TasksScreen() {
           <Search size={14} color="var(--text-muted)" style={{ flexShrink: 0 }} />
           <input
             className="search-input"
-            placeholder="Buscar afazeres…"
+            placeholder="Buscar rotinas…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -504,7 +603,7 @@ export function TasksScreen() {
         {!isLoading && filtered.length === 0 && (
           <div className="empty-state">
             <CheckSquare size={40} strokeWidth={1.2} color="var(--text-muted)" />
-            <div className="empty-label">{q ? 'Nenhum resultado' : 'Sem afazeres'}</div>
+            <div className="empty-label">{q ? 'Nenhum resultado' : 'Sem rotinas'}</div>
             <div className="empty-hint">{q ? `Nenhum afazer com "${search}"` : 'Crie tarefas recorrentes que aparecem automaticamente na semana.'}</div>
           </div>
         )}

@@ -3,7 +3,7 @@ import { CalendarDays, CheckSquare, Calendar, BarChart2, User } from 'lucide-rea
 
 const tabs = [
   { to: '/', Icon: CalendarDays, label: 'Semana' },
-  { to: '/afazeres', Icon: CheckSquare, label: 'Afazeres' },
+  { to: '/rotinas', Icon: CheckSquare, label: 'Rotinas' },
   { to: '/eventos', Icon: Calendar, label: 'Eventos' },
   { to: '/progresso', Icon: BarChart2, label: 'Progresso' },
   { to: '/perfil', Icon: User, label: 'Perfil' },

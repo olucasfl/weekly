@@ -542,7 +542,7 @@ export function WeekScreen() {
                     transition: 'all 0.15s',
                   }}
                 >
-                  {tab === 'recurring' ? 'Afazeres' : 'Eventos'}
+                  {tab === 'recurring' ? 'Rotinas' : 'Eventos'}
                 </button>
               ))}
             </div>
@@ -551,7 +551,7 @@ export function WeekScreen() {
             {addExistingTab === 'recurring' && (
               recurringNotOnThisDay.length === 0 ? (
                 <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', textAlign: 'center', padding: '16px 0' }}>
-                  Todos os seus afazeres já aparecem neste dia.
+                  Todas as suas rotinas já aparecem neste dia.
                 </p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 320, overflowY: 'auto' }}>

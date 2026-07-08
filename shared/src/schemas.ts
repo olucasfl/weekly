@@ -15,6 +15,7 @@ export const taskSchema = z.object({
   reminderMin: z.number().int().default(60),
   important: z.boolean().default(false),
   countdownDays: z.number().int().nullable().optional(),
+  yearlyMonth: z.number().int().min(1).max(12).nullable().optional(),
   categoryId: z.string().optional(),
   active: z.boolean().default(true),
 });

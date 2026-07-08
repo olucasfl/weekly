@@ -56,7 +56,7 @@ export default function App() {
         <Route path="/esqueci-senha"          element={<ForgotPasswordScreen />} />
         <Route path="/redefinir-senha" element={<ResetPasswordScreen />} />
         <Route path="/"          element={<ProtectedRoute><WeekScreen /></ProtectedRoute>} />
-        <Route path="/afazeres"  element={<ProtectedRoute><TasksScreen /></ProtectedRoute>} />
+        <Route path="/rotinas"   element={<ProtectedRoute><TasksScreen /></ProtectedRoute>} />
         <Route path="/eventos"   element={<ProtectedRoute><EventsScreen /></ProtectedRoute>} />
         <Route path="/progresso" element={<ProtectedRoute><ProgressScreen /></ProtectedRoute>} />
         <Route path="/perfil"    element={<ProtectedRoute><ProfileScreen /></ProtectedRoute>} />
