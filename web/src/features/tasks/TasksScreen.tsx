@@ -25,6 +25,8 @@ type Task = {
   category?: Category | null;
   recurrenceType?: string;
   monthlyDay?: number | null;
+  monthlyWeekday?: number | null;
+  monthlyWeek?: number | null;
   yearlyMonth?: number | null;
 };
 
@@ -178,6 +180,8 @@ type FormData = {
   recurrenceType: RecurrenceType;
   monthlyDay: number;
   yearlyMonth: number;
+  monthlyWeekday: number;
+  monthlyWeek: number;
   important: boolean;
   countdownDays: number;
 };
@@ -195,6 +199,8 @@ const EMPTY_FORM: FormData = {
   recurrenceType: 'weekly',
   monthlyDay: new Date().getDate(),
   yearlyMonth: new Date().getMonth() + 1,
+  monthlyWeekday: new Date().getDay(),
+  monthlyWeek: getNthWeekday(new Date()),
   important: false,
   countdownDays: 7,
 };
@@ -219,6 +225,8 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
           recurrenceType: (task.recurrenceType as RecurrenceType) ?? 'weekly',
           monthlyDay: task.monthlyDay ?? new Date().getDate(),
           yearlyMonth: task.yearlyMonth ?? (new Date().getMonth() + 1),
+          monthlyWeekday: task.monthlyWeekday ?? new Date().getDay(),
+          monthlyWeek: task.monthlyWeek ?? getNthWeekday(new Date()),
           important: task.important ?? false,
           countdownDays: task.countdownDays ?? 7,
         }
@@ -256,8 +264,8 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
       extra.important = form.important;
       extra.countdownDays = form.important ? form.countdownDays : null;
     } else if (form.recurrenceType === 'monthly_weekday') {
-      extra.monthlyWeekday = now.getDay();
-      extra.monthlyWeek = getNthWeekday(now);
+      extra.monthlyWeekday = form.monthlyWeekday;
+      extra.monthlyWeek = form.monthlyWeek;
     } else if (form.recurrenceType === 'yearly') {
       extra.monthlyDay = form.monthlyDay;
       extra.yearlyMonth = form.yearlyMonth;
@@ -336,8 +344,23 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
             )}
 
             {form.recurrenceType === 'monthly_weekday' && (
-              <div className="text-xs text-muted" style={{ marginTop: 4 }}>
-                {`${WEEK_LABELS[Math.min(getNthWeekday(new Date()) - 1, 4)]} ${DAY_NAMES_FULL[new Date().getDay()]} de cada mês`}
+              <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label className="label">Semana do mês</label>
+                  <select className="select" value={form.monthlyWeek} onChange={(e) => setForm({ ...form, monthlyWeek: Number(e.target.value) })}>
+                    {WEEK_VALUES.map((w, i) => (
+                      <option key={w} value={w}>{WEEK_LABELS[i]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field" style={{ marginBottom: 0 }}>
+                  <label className="label">Dia da semana</label>
+                  <select className="select" value={form.monthlyWeekday} onChange={(e) => setForm({ ...form, monthlyWeekday: Number(e.target.value) })}>
+                    {DAY_NAMES_FULL.map((d, i) => (
+                      <option key={i} value={i}>{d}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             )}
 
