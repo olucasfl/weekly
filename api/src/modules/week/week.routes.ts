@@ -45,6 +45,8 @@ export const weekRoutes: FastifyPluginAsync = async (app) => {
         monthlyDay: task.monthlyDay ?? undefined,
         monthlyWeekday: task.monthlyWeekday ?? undefined,
         monthlyWeek: task.monthlyWeek ?? undefined,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        yearlyMonth: (task as any).yearlyMonth ?? undefined,
         deletedAt: task.deletedAt ?? undefined,
         notes: task.notes ?? undefined,
         extraDays: extraByTaskId.get(task.id) ?? [],

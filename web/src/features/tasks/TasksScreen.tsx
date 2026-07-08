@@ -258,7 +258,9 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
     const now = new Date();
     const extra: Record<string, unknown> = { recurrenceType: form.recurrenceType };
     if (form.recurrenceType === 'biweekly') {
-      extra.biweeklyAnchor = now.toISOString().slice(0, 10);
+      if (!isEdit || task?.recurrenceType !== 'biweekly') {
+        extra.biweeklyAnchor = now.toISOString().slice(0, 10);
+      }
     } else if (form.recurrenceType === 'monthly_date') {
       extra.monthlyDay = form.monthlyDay;
       extra.important = form.important;

@@ -15,11 +15,14 @@ const taskInputSchema = z.object({
   categoryId: z.string().nullable().optional(),
   active: z.boolean().default(true),
   notes: z.string().optional(),
-  recurrenceType: z.enum(['weekly', 'biweekly', 'monthly_date', 'monthly_weekday']).default('weekly'),
+  recurrenceType: z.enum(['weekly', 'biweekly', 'monthly_date', 'monthly_weekday', 'yearly']).default('weekly'),
   biweeklyAnchor: z.string().nullable().optional(),
   monthlyDay: z.number().int().min(1).max(31).nullable().optional(),
   monthlyWeekday: z.number().int().min(0).max(6).nullable().optional(),
   monthlyWeek: z.number().int().nullable().optional(),
+  yearlyMonth: z.number().int().min(1).max(12).nullable().optional(),
+  important: z.boolean().default(false),
+  countdownDays: z.number().int().nullable().optional(),
 });
 
 export const tasksRoutes: FastifyPluginAsync = async (app) => {
