@@ -26,8 +26,7 @@ export async function buildApp() {
   app.setSerializerCompiler(serializerCompiler);
 
   await app.register(fastifyCookie);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await app.register(fastifyHelmet as any, { contentSecurityPolicy: false });
+  await app.register(fastifyHelmet, { contentSecurityPolicy: false });
   await app.register(fastifyCors, { origin: env.CORS_ORIGIN.split(',') });
   await app.register(fastifyRateLimit, {
     global: false, // só aplica em rotas que optarem
