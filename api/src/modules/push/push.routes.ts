@@ -23,6 +23,14 @@ export const pushRoutes: FastifyPluginAsync = async (app) => {
       update: { userId, p256dh, auth, timezone },
     });
 
+    // A device only ever holds one live subscription at a time — when the browser
+    // rotates the endpoint (e.g. after clearing site data or re-adding the PWA),
+    // old rows for this user are dead but never told us, so drop them here to
+    // avoid sending the same notification to the same device multiple times.
+    await prisma.pushSubscription.deleteMany({
+      where: { userId, endpoint: { not: endpoint } },
+    });
+
     return reply.code(201).send({ ok: true });
   });
 
