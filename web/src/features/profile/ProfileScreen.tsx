@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { User, Bell, BellOff, LogOut, Smartphone, Info, Moon, Sun, Pencil, Key, Trash2, X, Check, ChevronRight, Clock, AlertCircle } from 'lucide-react';
+import { User, Bell, BellOff, LogOut, Smartphone, Info, Moon, Sun, Pencil, Key, Trash2, X, Check, ChevronRight, Clock, AlertCircle, Timer } from 'lucide-react';
 import { BottomNav } from '../../components/BottomNav';
 import { LogoMark } from '../../components/Logo';
 import { useAuthStore } from '../../store/auth';
 import { useThemeStore } from '../../store/theme';
 import { api } from '../../lib/api';
 
-type ProfileData = { id: string; name: string; email: string; pendingEmail: string | null };
+type ProfileData = { id: string; name: string; email: string; pendingEmail: string | null; studyTimerEnabled: boolean };
 
 function getInitials(name: string) {
   return name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase();
@@ -414,6 +414,18 @@ export function ProfileScreen() {
             </div>
             <ChevronRight size={15} color="var(--text-muted)" />
           </button>
+          {profile?.studyTimerEnabled && (
+            <button
+              className="profile-action-row"
+              onClick={() => navigate('/foco')}
+            >
+              <div className="row" style={{ gap: 10 }}>
+                <Timer size={15} strokeWidth={2} color="var(--brand)" />
+                <span style={{ fontSize: '0.875rem', fontWeight: 500 }}>Cronômetro de estudos</span>
+              </div>
+              <ChevronRight size={15} color="var(--text-muted)" />
+            </button>
+          )}
         </div>
 
         {/* Dark mode */}

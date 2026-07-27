@@ -15,6 +15,7 @@ import {
   verifyEmailChange,
   cancelEmailChange,
 } from './auth.service.js';
+import { isStudyTimerAllowed } from '../../lib/studyTimerAccess.js';
 
 const registerInputSchema = z.object({
   name: z.string().min(1),
@@ -76,7 +77,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     if (!userId) return reply.code(401).send({ statusCode: 401, message: 'Não autenticado' });
     const user = await findUserById(userId);
     if (!user) return reply.code(404).send({ statusCode: 404, message: 'Usuário não encontrado' });
-    return reply.send(user);
+    return reply.send({ ...user, studyTimerEnabled: isStudyTimerAllowed(user.id) });
   });
 
   // Verificação de email
