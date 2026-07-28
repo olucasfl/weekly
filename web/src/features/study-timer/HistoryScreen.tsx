@@ -24,6 +24,7 @@ type History = {
 };
 
 function fmtDuration(totalMinutes: number) {
+  if (!Number.isFinite(totalMinutes)) return '0min';
   const h = Math.floor(totalMinutes / 60);
   const m = totalMinutes % 60;
   if (h === 0) return `${m}min`;

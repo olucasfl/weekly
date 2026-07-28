@@ -142,9 +142,12 @@ export async function getHistory(userId: string, page: number) {
   const totalSessions = completedSessions.length;
   const totalMinutes = completedSessions.reduce((sum, s) => sum + s.totalCycles * s.cycleMinutes, 0);
 
-  const sevenDaysAgoMs = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+  // Calendar week Sunday→Sunday (resets every Sunday), not a rolling 7 days.
+  const weekStart = new Date(now);
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - weekStart.getDay());
   const weekMinutes = completedSessions
-    .filter((s) => new Date(s.startAt).getTime() >= sevenDaysAgoMs)
+    .filter((s) => new Date(s.startAt).getTime() >= weekStart.getTime())
     .reduce((sum, s) => sum + s.totalCycles * s.cycleMinutes, 0);
 
   const totalPages = Math.max(1, Math.ceil(resolved.length / HISTORY_PAGE_SIZE));
