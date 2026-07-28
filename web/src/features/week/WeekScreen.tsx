@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { localISO, weekStartOf, addDays } from '../../lib/date';
 import { EVENT_COLOR, DAY_NAMES, DAY_NAMES_FULL, MONTH_NAMES_LC } from '../../lib/constants';
-import { BottomNav } from '../../components/BottomNav';
+import { AppNav } from '../../components/AppNav';
 import { LogoFull } from '../../components/Logo';
 import { TaskRowSkeleton } from '../../components/Skeleton';
 import { TimeGridView } from './TimeGridView';
@@ -72,6 +72,13 @@ export function WeekScreen() {
     queryFn: () => api(`/week?start=${weekStartISO}`),
   });
 
+  // Live goals badge — turns the "Metas" link into an ambient reminder of the week's
+  // progress instead of a dead label nobody has a reason to notice.
+  const { data: goalsSummary } = useQuery<{ total: number; completed: number; percent: number }>({
+    queryKey: ['goals-summary', weekStartISO],
+    queryFn: () => api(`/goals/summary?weekStart=${weekStartISO}`),
+  });
+
   const { data: allRecurring = [], isLoading: loadingRecurring } = useQuery<AnyTask[]>({
     queryKey: ['tasks', 'recurring'],
     queryFn: () => api('/tasks?type=recurring'),
@@ -128,7 +135,13 @@ export function WeekScreen() {
       if (ctx?.prev) qc.setQueryData(['week', weekStartISO], ctx.prev);
       showError(err instanceof Error ? err.message : 'Erro ao salvar. O check foi revertido.');
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['week', weekStartISO] }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['week', weekStartISO] });
+      // Concluir uma rotina pode ter avançado uma meta vinculada por categoria (ver
+      // completions.service.ts) — refetch pra o badge/tela de Metas refletirem na hora.
+      qc.invalidateQueries({ queryKey: ['goals-summary', weekStartISO] });
+      qc.invalidateQueries({ queryKey: ['goals', weekStartISO] });
+    },
   });
 
   const bulkMutation = useMutation({
@@ -148,7 +161,11 @@ export function WeekScreen() {
       if (ctx?.prev) qc.setQueryData(['week', weekStartISO], ctx.prev);
       showError(err instanceof Error ? err.message : 'Erro ao salvar. As alterações foram revertidas.');
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['week', weekStartISO] }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['week', weekStartISO] });
+      qc.invalidateQueries({ queryKey: ['goals-summary', weekStartISO] });
+      qc.invalidateQueries({ queryKey: ['goals', weekStartISO] });
+    },
   });
 
   const skipMutation = useMutation({
@@ -234,18 +251,20 @@ export function WeekScreen() {
                   display: 'flex', alignItems: 'center', gap: 5,
                   padding: '4px 10px 4px 7px',
                   borderRadius: 'var(--r-full)',
-                  background: 'var(--brand-grad)',
+                  background: goalsSummary && goalsSummary.total > 0 && goalsSummary.completed === goalsSummary.total
+                    ? 'var(--success)'
+                    : 'var(--brand-grad)',
                   border: 'none', cursor: 'pointer',
                   fontSize: '0.75rem', fontWeight: 700, color: 'white',
                   boxShadow: '0 2px 8px rgba(114,85,224,0.35)',
                   letterSpacing: '0.01em',
-                  transition: 'opacity 0.15s',
+                  transition: 'opacity 0.15s, background 0.2s',
                 }}
                 onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.85')}
                 onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
               >
                 <Trophy size={12} strokeWidth={2.2} />
-                Metas
+                {goalsSummary && goalsSummary.total > 0 ? `Metas · ${goalsSummary.completed}/${goalsSummary.total}` : 'Metas'}
               </button>
             </div>
           </div>
@@ -310,6 +329,7 @@ export function WeekScreen() {
             today={today}
             filterCatId={null}
             onToggle={onToggle}
+            isLoading={isLoading}
           />
         </div>
       )}
@@ -621,7 +641,7 @@ export function WeekScreen() {
       {toastError && (
         <div style={{
           position: 'fixed', bottom: 'calc(68px + env(safe-area-inset-bottom) + 12px)', left: '50%', transform: 'translateX(-50%)',
-          background: '#ef4444', color: '#fff', borderRadius: 10, padding: '10px 18px',
+          background: 'var(--danger)', color: '#fff', borderRadius: 10, padding: '10px 18px',
           fontSize: '0.85rem', fontWeight: 600, zIndex: 9999, boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
           whiteSpace: 'nowrap', pointerEvents: 'none',
         }}>
@@ -629,7 +649,7 @@ export function WeekScreen() {
         </div>
       )}
 
-      <BottomNav />
+      <AppNav />
     </>
   );
 }

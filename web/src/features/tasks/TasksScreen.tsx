@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Bell, BellOff, CircleDot, CircleOff, CheckSquare, Check, Search, X, Star } from 'lucide-react';
 import { api } from '../../lib/api';
-import { BottomNav } from '../../components/BottomNav';
+import { AppNav } from '../../components/AppNav';
 import { TaskRowSkeleton } from '../../components/Skeleton';
 import { DAY_NAMES_FULL } from '../../lib/constants';
 
@@ -677,7 +677,7 @@ export function TasksScreen() {
         />
       )}
 
-      <BottomNav />
+      <AppNav />
     </>
   );
 }

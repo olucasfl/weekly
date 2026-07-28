@@ -49,8 +49,17 @@
 
   /* Layout */
   --nav-h: 68px;
+  --sidebar-w: 232px;
   --font:  'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
+
+/* ─── Breakpoints ─────────────────────────────────────────────────
+   < 900px  → phone / portrait tablet: bottom tab bar, single column, full width.
+   ≥ 900px  → landscape tablet / desktop: left sidebar nav, content gets a fixed
+              reading-width column instead of stretching edge to edge.
+   ≥ 1280px → large desktop: a bit more breathing room for multi-column screens
+              (stat grid, progress history + categories side by side).
+   Referenced literally in each @media below (plain CSS has no custom media). */
 
 /* ─── Dark mode tokens ────────────────────────────────────────── */
 [data-theme="dark"] {
@@ -126,6 +135,22 @@ body::before {
   padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 8px);
   max-width: 480px;
   margin: 0 auto;
+}
+
+/* Desktop/tablet: content moves next to the sidebar instead of being centered under
+   a bottom nav that no longer exists at this width. Scoped to body.has-app-nav (set by
+   AppNav on mount) so auth/verification screens — which never render AppNav — stay
+   centered edge to edge instead of leaving a phantom sidebar-sized gap. */
+@media (min-width: 900px) {
+  body.has-app-nav .app-shell {
+    margin-left: var(--sidebar-w);
+    margin-right: auto;
+    max-width: 900px;
+    padding-bottom: 40px;
+  }
+}
+@media (min-width: 1280px) {
+  body.has-app-nav .app-shell { max-width: 1040px; }
 }
 
 /* ─── Screen header ───────────────────────────────────────────── */
@@ -467,6 +492,44 @@ body::before {
 .nav-item.active { color: var(--brand); background: var(--brand-light); }
 .nav-icon { display: flex; }
 
+@media (min-width: 900px) {
+  .bottom-nav { display: none; }
+}
+
+/* ─── Sidebar (tablet/desktop nav) ───────────────────────────────
+   Hidden by default (mobile uses .bottom-nav instead); becomes a fixed left rail
+   from 900px up. Mirrors .bottom-nav's link list, just laid out vertically. */
+.sidebar {
+  display: none;
+}
+@media (min-width: 900px) {
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: var(--sidebar-w);
+    padding: 20px 14px;
+    border-right: 1px solid var(--border);
+    background: var(--bg-surface);
+    z-index: 50;
+  }
+}
+.sidebar-brand { padding: 8px 10px 20px; }
+.sidebar-links { display: flex; flex-direction: column; gap: 2px; }
+.sidebar-link {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.88rem; font-weight: 600;
+  transition: color 0.15s, background 0.15s;
+}
+.sidebar-link:hover  { background: var(--bg-surface-2); color: var(--text-primary); }
+.sidebar-link.active { background: var(--brand-light); color: var(--brand); }
+
 /* ─── Day strip ───────────────────────────────────────────────── */
 .day-strip {
   display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; padding: 4px 2px;
@@ -531,6 +594,21 @@ body::before {
 .stat-val   { font-size: 1.7rem; font-weight: 800; color: var(--text-primary); letter-spacing: -0.04em; line-height: 1.1; }
 .stat-label { font-size: 0.73rem; color: var(--text-muted); margin-top: 3px; font-weight: 400; }
 
+/* On tablet/desktop the 4 stat boxes have room to sit in a single row instead of
+   being stuck 2×2 forever — widen the shell (and the nav that tracks it) to match. */
+@media (min-width: 640px) {
+  .app-shell  { max-width: 640px; }
+  .bottom-nav { max-width: 640px; }
+  .stat-grid  { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* Progress screen: history + by-category sit stacked on mobile, side by side once
+   there's room for both to stay readable (each card wants ~320px minimum). */
+.progress-lower-grid { display: flex; flex-direction: column; gap: 10px; }
+@media (min-width: 900px) {
+  .progress-lower-grid { display: grid; grid-template-columns: 1fr 1fr; align-items: start; gap: 10px; }
+}
+
 /* ─── Helpers ─────────────────────────────────────────────────── */
 .row         { display: flex; align-items: center; gap: 8px; }
 .row-between { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -573,7 +651,7 @@ body::before {
 .color-swatch:hover:not(.selected) { transform: scale(1.1); }
 .color-swatch.selected {
   border-color: var(--text-primary);
-  box-shadow: 0 0 0 2px white, 0 0 0 4px var(--text-primary);
+  box-shadow: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--text-primary);
   transform: scale(1.08);
 }
 
@@ -656,7 +734,7 @@ body::before {
 .search-box {
   display: flex; align-items: center; gap: 8px;
   background: var(--bg-surface-2);
-  border: 1.5px solid var(--border-soft);
+  border: 1.5px solid var(--border);
   border-radius: var(--r-full);
   padding: 8px 14px;
   margin-bottom: 4px;
@@ -727,6 +805,10 @@ body::before {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
 }
+@media (min-width: 900px) {
+  /* No bottom nav reserving space down there anymore, so the grid can claim it back */
+  .tgrid-wrapper { height: calc(100dvh - 160px); }
+}
 .tgrid-header {
   display: flex;
   position: sticky; top: 0; z-index: 5;
@@ -742,7 +824,9 @@ body::before {
   backdrop-filter: blur(16px);
 }
 .tgrid-day-header {
-  width: 68px; flex-shrink: 0;
+  /* grow to fill extra width on tablet/desktop; never shrink below a readable 68px,
+     which is what keeps the grid horizontally scrollable (instead of squished) on phones */
+  flex: 1 0 68px;
   display: flex; flex-direction: column; align-items: center;
   padding: 8px 4px;
   border-left: 1px solid var(--border);
@@ -759,7 +843,7 @@ body::before {
 .tgrid-time-col {
   width: 44px; flex-shrink: 0;
   position: sticky; left: 0; z-index: 2;
-  background: var(--bg-card);
+  background: var(--bg-surface);
   display: flex; flex-direction: column;
 }
 .tgrid-hour-label {
@@ -768,7 +852,9 @@ body::before {
   text-align: right; padding: 4px 6px 0 0;
 }
 .tgrid-day-col {
-  width: 68px; flex-shrink: 0;
+  /* same grow/shrink contract as .tgrid-day-header — the two rows must scale
+     identically or the day columns stop lining up with their headers */
+  flex: 1 0 68px;
   position: relative;
   border-left: 1px solid var(--border);
 }

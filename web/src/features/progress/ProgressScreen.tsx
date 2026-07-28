@@ -3,8 +3,8 @@ import { Flame, TrendingUp, Clock, Target, Trophy, ArrowRight } from 'lucide-rea
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { localISO, weekStartOf, addDays } from '../../lib/date';
-import { BottomNav } from '../../components/BottomNav';
-import { StatBoxSkeleton } from '../../components/Skeleton';
+import { AppNav } from '../../components/AppNav';
+import { Skeleton, StatBoxSkeleton } from '../../components/Skeleton';
 
 type Dashboard = {
   weekStart: string;
@@ -148,59 +148,68 @@ export function ProgressScreen() {
           </button>
         )}
 
-        {/* Week history */}
-        <div className="card">
-          <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: 16 }}>Histórico — 8 semanas</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {historyQueries.map((q, i) => {
-              const ws = pastWeekStarts[i];
-              const pct = q.data?.percent ?? 0;
-              const isCurrentWeek = ws === weekStart;
-              return (
-                <div key={ws} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: '0.72rem', minWidth: 44, textAlign: 'right', fontWeight: isCurrentWeek ? 700 : 400, color: isCurrentWeek ? 'var(--brand)' : 'var(--text-muted)' }}>
-                    {weekLabel(ws)}
-                  </span>
-                  <div className="progress-bar-track" style={{ flex: 1 }}>
-                    <div
-                      className="progress-bar-fill"
-                      style={{ width: `${pct}%`, background: isCurrentWeek ? 'var(--brand-grad)' : 'var(--brand-mid)' }}
-                    />
-                  </div>
-                  <span style={{ fontSize: '0.72rem', minWidth: 32, textAlign: 'right', fontWeight: 600, color: isCurrentWeek ? 'var(--brand)' : 'var(--text-secondary)' }}>
-                    {q.isLoading ? '…' : `${pct}%`}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* By category */}
-        {(dashboard?.byCategory?.length ?? 0) > 0 && (
+        {/* Histórico + Por categoria — lado a lado em telas largas (ver .progress-lower-grid) */}
+        <div className="progress-lower-grid">
           <div className="card">
-            <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: 16 }}>Por categoria</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {dashboard!.byCategory.map((cat) => (
-                <div key={cat.name}>
-                  <div className="row-between" style={{ marginBottom: 6 }}>
-                    <div className="row">
-                      <div className="cat-dot" style={{ background: cat.color }} />
-                      <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>{cat.name}</span>
-                    </div>
-                    <span className="text-xs text-muted">{cat.completed}/{cat.total}</span>
+            <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: 16 }}>Histórico — 8 semanas</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {historyQueries.map((q, i) => {
+                const ws = pastWeekStarts[i];
+                const pct = q.data?.percent ?? 0;
+                const isCurrentWeek = ws === weekStart;
+                return (
+                  <div key={ws} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: '0.72rem', minWidth: 44, textAlign: 'right', fontWeight: isCurrentWeek ? 700 : 400, color: isCurrentWeek ? 'var(--brand)' : 'var(--text-muted)' }}>
+                      {weekLabel(ws)}
+                    </span>
+                    {q.isLoading ? (
+                      <Skeleton height={6} radius={99} style={{ flex: 1 }} />
+                    ) : (
+                      <div className="progress-bar-track" style={{ flex: 1 }}>
+                        <div
+                          className="progress-bar-fill"
+                          style={{ width: `${pct}%`, background: isCurrentWeek ? 'var(--brand-grad)' : 'var(--brand-mid)' }}
+                        />
+                      </div>
+                    )}
+                    {q.isLoading ? (
+                      <Skeleton width={26} height={11} radius={5} />
+                    ) : (
+                      <span style={{ fontSize: '0.72rem', minWidth: 32, textAlign: 'right', fontWeight: 600, color: isCurrentWeek ? 'var(--brand)' : 'var(--text-secondary)' }}>
+                        {pct}%
+                      </span>
+                    )}
                   </div>
-                  <div className="progress-bar-track">
-                    <div className="progress-bar-fill" style={{ width: `${cat.total > 0 ? (cat.completed / cat.total) * 100 : 0}%`, background: cat.color }} />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
-        )}
+
+          {(dashboard?.byCategory?.length ?? 0) > 0 && (
+            <div className="card">
+              <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: 16 }}>Por categoria</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {dashboard!.byCategory.map((cat) => (
+                  <div key={cat.name}>
+                    <div className="row-between" style={{ marginBottom: 6 }}>
+                      <div className="row">
+                        <div className="cat-dot" style={{ background: cat.color }} />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>{cat.name}</span>
+                      </div>
+                      <span className="text-xs text-muted">{cat.completed}/{cat.total}</span>
+                    </div>
+                    <div className="progress-bar-track">
+                      <div className="progress-bar-fill" style={{ width: `${cat.total > 0 ? (cat.completed / cat.total) * 100 : 0}%`, background: cat.color }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      <BottomNav />
+      <AppNav />
     </>
   );
 }

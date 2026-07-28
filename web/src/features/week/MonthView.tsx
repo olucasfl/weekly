@@ -61,6 +61,7 @@ export function MonthView({ today, filterCatId, onSelectDay }: Props) {
     })),
   });
 
+  const isLoading = queries.some((q) => q.isLoading);
   const allOccs: Occurrence[] = queries.flatMap((q) => q.data ?? []);
   const filtered = filterCatId ? allOccs.filter((o) => o.category?.id === filterCatId) : allOccs;
 
@@ -111,7 +112,11 @@ export function MonthView({ today, filterCatId, onSelectDay }: Props) {
               onClick={() => onSelectDay(iso)}
             >
               <div className={`month-cell-num${isToday ? ' today' : ''}`}>{d.getDate()}</div>
-              {dots.length > 0 && (
+              {isLoading ? (
+                // Still fetching this week's occurrences — show a shimmer instead of
+                // silently rendering an empty cell that looks the same as "nothing scheduled".
+                <div className="skeleton" style={{ width: 16, height: 5, borderRadius: 3, marginTop: 1 }} />
+              ) : dots.length > 0 && (
                 <div className="month-dots">
                   {dots.map((o) => (
                     <div

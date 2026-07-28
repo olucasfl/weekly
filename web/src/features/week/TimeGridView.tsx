@@ -8,9 +8,6 @@ const HOURS = Array.from({ length: GRID_END - GRID_START + 1 }, (_, i) => GRID_S
 const TOTAL_H = HOURS.length * HOUR_H;
 const DAY_ABBR = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const STRIP_W = 9;
-// Must match CSS: tgrid-corner width + tgrid-day-col width
-const CORNER_W = 44;
-const COL_W = 68;
 
 type Occurrence = {
   taskId: string;
@@ -32,6 +29,7 @@ interface Props {
   today: Date;
   filterCatId: string | null;
   onToggle: (taskId: string, date: string, done: boolean) => void;
+  isLoading?: boolean;
 }
 
 function toMin(t: string) { const [h, m] = t.split(':').map(Number); return h * 60 + m; }
@@ -107,7 +105,7 @@ function buildMultiDayBands(occs: Occurrence[], weekDayISOs: string[]): MultiDay
   return bands;
 }
 
-export function TimeGridView({ occurrences, weekDays, today, filterCatId, onToggle }: Props) {
+export function TimeGridView({ occurrences, weekDays, today, filterCatId, onToggle, isLoading }: Props) {
   const todayISO = localISO(today);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const [topKey, setTopKey] = useState<string | null>(null);
@@ -119,6 +117,36 @@ export function TimeGridView({ occurrences, weekDays, today, filterCatId, onTogg
   }, []);
 
   useEffect(() => { setTopKey(null); }, [occurrences]);
+
+  if (isLoading) {
+    // Without this, switching weeks (or the first load) shows the grid completely
+    // empty — indistinguishable from "nothing scheduled this week".
+    return (
+      <div className="tgrid-wrapper">
+        <div className="tgrid-header">
+          <div className="tgrid-corner" />
+          {weekDays.map((d) => (
+            <div key={localISO(d)} className="tgrid-day-header">
+              <div className="skeleton" style={{ width: 22, height: 8, borderRadius: 4, marginBottom: 5 }} />
+              <div className="skeleton" style={{ width: 16, height: 14, borderRadius: 4 }} />
+            </div>
+          ))}
+        </div>
+        <div className="tgrid-body">
+          <div className="tgrid-time-col">
+            {HOURS.slice(0, 7).map((h) => <div key={h} className="tgrid-hour-label" />)}
+          </div>
+          {weekDays.map((d, i) => (
+            <div key={localISO(d)} className="tgrid-day-col" style={{ height: 7 * HOUR_H, position: 'relative' }}>
+              {i % 2 === 0 && (
+                <div className="skeleton" style={{ position: 'absolute', top: 24 + (i * 11) % 60, left: 3, right: 3, height: 42, borderRadius: 6 }} />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   const filtered = filterCatId
     ? occurrences.filter((o) => o.category?.id === filterCatId)
@@ -154,8 +182,11 @@ export function TimeGridView({ occurrences, weekDays, today, filterCatId, onTogg
             style={{ position: 'relative', height: multiDayBands.length * 28 + 8 }}
           >
             {multiDayBands.map((band, i) => {
-              const left = band.colStart * COL_W + 2;
-              const width = (band.colEnd - band.colStart + 1) * COL_W - 4;
+              // Percentage of the 7-day row, not a pixel offset — .tgrid-day-col is
+              // fluid-width now (grows on tablet/desktop), so a fixed COL_W would only
+              // line bands up with their day columns at exactly one viewport width.
+              const left = `calc(${(band.colStart / 7) * 100}% + 2px)`;
+              const width = `calc(${((band.colEnd - band.colStart + 1) / 7) * 100}% - 4px)`;
               const timeLabel = band.endDate
                 ? `${band.startTime} → ${band.endTime || ''}`
                 : band.startTime;

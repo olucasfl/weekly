@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { User, Bell, BellOff, LogOut, Smartphone, Info, Moon, Sun, Pencil, Key, Trash2, X, Check, ChevronRight, Clock, AlertCircle } from 'lucide-react';
-import { BottomNav } from '../../components/BottomNav';
+import { AppNav } from '../../components/AppNav';
 import { LogoMark } from '../../components/Logo';
 import { useAuthStore } from '../../store/auth';
 import { useThemeStore } from '../../store/theme';
@@ -539,7 +539,7 @@ export function ProfileScreen() {
       {modal === 'password' && <ChangePasswordModal onClose={() => setModal(null)} />}
       {modal === 'delete' && <DeleteAccountModal onClose={() => setModal(null)} onDeleted={handleDeleted} />}
 
-      <BottomNav />
+      <AppNav />
     </>
   );
 }
