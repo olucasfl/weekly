@@ -83,8 +83,11 @@ function nowInZone(tz: string): { hours: number; minutes: number; dateStr: strin
   }
 }
 
-// Tracks sent notifications to avoid duplicates within the same minute window
+// Tracks sent notifications to avoid duplicates within the same minute window.
+// Values are absolute Date.now() timestamps (ms) — NOT a given user's local minute-of-day —
+// so cleanup timing stays correct no matter which users' timezones get processed in a tick.
 const sentThisMinute = new Map<string, number>();
+const DEDUPE_TTL_MS = 5 * 60_000;
 
 async function sendToSubs(
   subs: { endpoint: string; p256dh: string; auth: string }[],
@@ -136,20 +139,32 @@ export function startNotificationJob() {
         byUser.set(t.userId, list);
       }
 
+      const nowMs = Date.now();
+      // Clean stale dedupe entries once per tick, using an absolute timestamp — doing
+      // this per-user with each user's own local minute-of-day was the bug: the map is
+      // shared across everyone, so entries could be cleaned too early or too late
+      // depending on whose timezone happened to run through this code that tick.
+      for (const [key, sentAt] of sentThisMinute) {
+        if (nowMs - sentAt > DEDUPE_TTL_MS) sentThisMinute.delete(key);
+      }
+
       for (const [, userTasks] of byUser) {
         const subs = userTasks[0].user.pushSubscriptions;
         if (subs.length === 0) continue;
 
-        const tz = (subs[0] as { timezone?: string })?.timezone ?? 'UTC';
-        const { hours, minutes, dateStr } = nowInZone(tz);
-        const nowMin = hours * 60 + minutes;
-
-        // Clean stale dedupe entries (older than 5 minutes)
-        for (const [key, sentAt] of sentThisMinute) {
-          if (nowMin - sentAt > 5) sentThisMinute.delete(key);
+        // Group this user's devices by their own timezone — each device's reminders must
+        // fire on ITS local time. Using only the first-registered device's timezone for
+        // every device meant a second device in another timezone got reminders at the
+        // wrong local hour.
+        const subsByTz = new Map<string, typeof subs>();
+        for (const sub of subs) {
+          const tz = (sub as { timezone?: string }).timezone ?? 'UTC';
+          const list = subsByTz.get(tz) ?? [];
+          list.push(sub);
+          subsByTz.set(tz, list);
         }
 
-        // Build shared taskLikes for recurrence engine
+        // Build shared taskLikes for recurrence engine (timezone-independent)
         const taskLikes = userTasks.map(t => ({
           id: t.id,
           title: t.title,
@@ -171,112 +186,117 @@ export function startNotificationJob() {
           yearlyMonth: (t as any).yearlyMonth ?? undefined,
         }));
 
-        // ── 1. Same-day reminders (reminderMin < 1440) ──────────────────
-        const reminderTasks = userTasks.filter(t => t.reminder && t.reminderMin < 1440);
-        if (reminderTasks.length > 0) {
-          const todayOccs = buildWeekOccurrences(taskLikes, mondayOf(dateStr));
-          const todayTaskIds = new Set(
-            todayOccs.filter(o => o.date === dateStr).map(o => o.task.id)
-          );
+        for (const [tz, tzSubs] of subsByTz) {
+          const { hours, minutes, dateStr } = nowInZone(tz);
+          const nowMin = hours * 60 + minutes;
 
-          for (const task of reminderTasks) {
-            if (!todayTaskIds.has(task.id)) continue;
-
-            const startMin = timeToMinutes(task.startTime);
-            const reminderAt = startMin - task.reminderMin;
-            if (reminderAt < 0) continue;
-
-            const diff = nowMin - reminderAt;
-            if (diff < 0 || diff > 1) continue;
-
-            const dedupeKey = `${task.id}-${dateStr}-${reminderAt}`;
-            if (sentThisMinute.has(dedupeKey)) continue;
-            sentThisMinute.set(dedupeKey, nowMin);
-
-            console.log(`[push] Reminder "${task.title}" (${task.startTime}, tz=${tz})`);
-            await sendToSubs(subs, JSON.stringify({
-              title: 'Weekly — lembrete',
-              body: `${task.title} às ${task.startTime}`,
-            }));
-          }
-        }
-
-        // ── 2. Day-level reminders (reminderMin >= 1440, e.g. 1 day before) ──
-        const dayLevelTasks = userTasks.filter(t => t.reminder && t.reminderMin >= 1440);
-        if (dayLevelTasks.length > 0) {
-          // Group by reminderDays to call buildWeekOccurrences only once per unique offset
-          const grouped = new Map<number, typeof dayLevelTasks>();
-          for (const task of dayLevelTasks) {
-            const days = Math.floor(task.reminderMin / 1440);
-            grouped.set(days, [...(grouped.get(days) ?? []), task]);
-          }
-
-          for (const [reminderDays, tasks] of grouped) {
-            const targetDate = addDays(dateStr, reminderDays);
-            const futureOccs = buildWeekOccurrences(taskLikes, mondayOf(targetDate));
-            const futureTaskIds = new Set(
-              futureOccs.filter(o => o.date === targetDate).map(o => o.task.id)
+          // ── 1. Same-day reminders (reminderMin < 1440) ──────────────────
+          const reminderTasks = userTasks.filter(t => t.reminder && t.reminderMin < 1440);
+          if (reminderTasks.length > 0) {
+            const todayOccs = buildWeekOccurrences(taskLikes, mondayOf(dateStr));
+            const todayTaskIds = new Set(
+              todayOccs.filter(o => o.date === dateStr).map(o => o.task.id)
             );
 
-            for (const task of tasks) {
-              if (!futureTaskIds.has(task.id)) continue;
+            for (const task of reminderTasks) {
+              if (!todayTaskIds.has(task.id)) continue;
 
               const startMin = timeToMinutes(task.startTime);
-              const diff = nowMin - startMin;
+              const reminderAt = startMin - task.reminderMin;
+              if (reminderAt < 0) continue;
+
+              const diff = nowMin - reminderAt;
               if (diff < 0 || diff > 1) continue;
 
-              const dedupeKey = `day-${task.id}-${dateStr}-${reminderDays}`;
+              const dedupeKey = `${task.id}-${dateStr}-${reminderAt}-${tz}`;
               if (sentThisMinute.has(dedupeKey)) continue;
-              sentThisMinute.set(dedupeKey, nowMin);
+              sentThisMinute.set(dedupeKey, nowMs);
 
-              const timeLabel = reminderDays === 1
-                ? `amanhã às ${task.startTime}`
-                : `em ${reminderDays} dias às ${task.startTime}`;
-
-              console.log(`[push] Day-level reminder "${task.title}" (in ${reminderDays} days, tz=${tz})`);
-              await sendToSubs(subs, JSON.stringify({
+              console.log(`[push] Reminder "${task.title}" (${task.startTime}, tz=${tz})`);
+              await sendToSubs(tzSubs, JSON.stringify({
                 title: 'Weekly — lembrete',
-                body: `${task.title} ${timeLabel}`,
+                body: `${task.title} às ${task.startTime}`,
               }));
             }
           }
-        }
 
-        // ── 3. Countdown for important events ───────────────────────────
-        for (const task of userTasks) {
-          if (!task.important || !task.countdownDays) continue;
+          // ── 2. Day-level reminders (reminderMin >= 1440, e.g. 1 day before) ──
+          const dayLevelTasks = userTasks.filter(t => t.reminder && t.reminderMin >= 1440);
+          if (dayLevelTasks.length > 0) {
+            // Group by reminderDays to call buildWeekOccurrences only once per unique offset
+            const grouped = new Map<number, typeof dayLevelTasks>();
+            for (const task of dayLevelTasks) {
+              const days = Math.floor(task.reminderMin / 1440);
+              grouped.set(days, [...(grouped.get(days) ?? []), task]);
+            }
 
-          let targetDate: string | null = null;
-          if (task.type === 'SCHEDULED' && task.date) {
-            targetDate = task.date;
-          } else if (task.recurrenceType === 'monthly_date' && task.monthlyDay) {
-            targetDate = nextMonthlyDateOccurrence(task.monthlyDay, dateStr);
-          } else if (task.recurrenceType === 'yearly' && task.monthlyDay && (task as unknown as { yearlyMonth?: number }).yearlyMonth) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            targetDate = nextYearlyOccurrence((task as any).yearlyMonth, task.monthlyDay, dateStr);
+            for (const [reminderDays, tasks] of grouped) {
+              const targetDate = addDays(dateStr, reminderDays);
+              const futureOccs = buildWeekOccurrences(taskLikes, mondayOf(targetDate));
+              const futureTaskIds = new Set(
+                futureOccs.filter(o => o.date === targetDate).map(o => o.task.id)
+              );
+
+              for (const task of tasks) {
+                if (!futureTaskIds.has(task.id)) continue;
+
+                const startMin = timeToMinutes(task.startTime);
+                const diff = nowMin - startMin;
+                if (diff < 0 || diff > 1) continue;
+
+                const dedupeKey = `day-${task.id}-${dateStr}-${reminderDays}-${tz}`;
+                if (sentThisMinute.has(dedupeKey)) continue;
+                sentThisMinute.set(dedupeKey, nowMs);
+
+                const timeLabel = reminderDays === 1
+                  ? `amanhã às ${task.startTime}`
+                  : `em ${reminderDays} dias às ${task.startTime}`;
+
+                console.log(`[push] Day-level reminder "${task.title}" (in ${reminderDays} days, tz=${tz})`);
+                await sendToSubs(tzSubs, JSON.stringify({
+                  title: 'Weekly — lembrete',
+                  body: `${task.title} ${timeLabel}`,
+                }));
+              }
+            }
           }
-          if (!targetDate) continue;
 
-          const daysUntil = diffDays(targetDate, dateStr);
-          if (daysUntil <= 0 || daysUntil > task.countdownDays) continue;
+          // ── 3. Countdown for important events ───────────────────────────
+          for (const task of userTasks) {
+            if (!task.important || !task.countdownDays) continue;
 
-          const startMin = timeToMinutes(task.startTime);
-          const diff = nowMin - startMin;
-          if (diff < 0 || diff > 1) continue;
+            let targetDate: string | null = null;
+            if (task.type === 'SCHEDULED' && task.date) {
+              targetDate = task.date;
+            } else if (task.recurrenceType === 'monthly_date' && task.monthlyDay) {
+              targetDate = nextMonthlyDateOccurrence(task.monthlyDay, dateStr);
+            } else if (task.recurrenceType === 'yearly' && task.monthlyDay && (task as unknown as { yearlyMonth?: number }).yearlyMonth) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              targetDate = nextYearlyOccurrence((task as any).yearlyMonth, task.monthlyDay, dateStr);
+            }
+            if (!targetDate) continue;
 
-          const dedupeKey = `countdown-${task.id}-${dateStr}-${daysUntil}`;
-          if (sentThisMinute.has(dedupeKey)) continue;
-          sentThisMinute.set(dedupeKey, nowMin);
+            const daysUntil = diffDays(targetDate, dateStr);
+            if (daysUntil <= 0 || daysUntil > task.countdownDays) continue;
 
-          const body = daysUntil === 1
-            ? `falta 1 dia para ${task.title}`
-            : `faltam ${daysUntil} dias para ${task.title}`;
+            const startMin = timeToMinutes(task.startTime);
+            const diff = nowMin - startMin;
+            if (diff < 0 || diff > 1) continue;
 
-          console.log(`[push] Countdown "${task.title}" (${daysUntil} days left, tz=${tz})`);
-          await sendToSubs(subs, JSON.stringify({
-            title: 'Weekly — evento importante ★',
-            body,
-          }));
+            const dedupeKey = `countdown-${task.id}-${dateStr}-${daysUntil}-${tz}`;
+            if (sentThisMinute.has(dedupeKey)) continue;
+            sentThisMinute.set(dedupeKey, nowMs);
+
+            const body = daysUntil === 1
+              ? `falta 1 dia para ${task.title}`
+              : `faltam ${daysUntil} dias para ${task.title}`;
+
+            console.log(`[push] Countdown "${task.title}" (${daysUntil} days left, tz=${tz})`);
+            await sendToSubs(tzSubs, JSON.stringify({
+              title: 'Weekly — evento importante ★',
+              body,
+            }));
+          }
         }
       }
     } catch (err) {

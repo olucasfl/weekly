@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  ChevronLeft, ChevronRight, Plus, Trash2, Check,
+  ChevronLeft, ChevronRight, Plus, Trash2, Check, Pencil,
   ArrowLeft, Target, Repeat, Calendar, Trophy, Sparkles,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { localISO, weekStartOf, addDays } from '../../lib/date';
-import { BottomNav } from '../../components/BottomNav';
+import { AppNav } from '../../components/AppNav';
 import { MONTH_NAMES_LC } from '../../lib/constants';
+
+type Category = { id: string; name: string; color: string };
 
 type Goal = {
   id: string;
@@ -137,7 +139,7 @@ function ProgressDots({
 }
 
 // ─── GoalCard ────────────────────────────────────────────────────────────
-function GoalCard({ goal, weekStart }: { goal: Goal; weekStart: string }) {
+function GoalCard({ goal, weekStart, onEdit }: { goal: Goal; weekStart: string; onEdit: () => void }) {
   const qc = useQueryClient();
   const [confirmDel, setConfirmDel] = useState(false);
 
@@ -222,14 +224,31 @@ function GoalCard({ goal, weekStart }: { goal: Goal; weekStart: string }) {
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => setConfirmDel(true)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--text-muted)', opacity: 0.4, flexShrink: 0, lineHeight: 1 }}
-            >
-              <Trash2 size={14} />
-            </button>
+            <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+              <button
+                onClick={onEdit}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--text-muted)', opacity: 0.5, lineHeight: 1 }}
+                aria-label="Editar meta"
+              >
+                <Pencil size={13} />
+              </button>
+              <button
+                onClick={() => setConfirmDel(true)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', color: 'var(--text-muted)', opacity: 0.4, lineHeight: 1 }}
+                aria-label="Apagar meta"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
           )}
         </div>
+
+        {goal.category && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 3 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: goal.category.color, flexShrink: 0 }} />
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>{goal.category.name}</span>
+          </div>
+        )}
 
         <div style={{ marginTop: 10 }}>
           <ProgressDots
@@ -243,38 +262,53 @@ function GoalCard({ goal, weekStart }: { goal: Goal; weekStart: string }) {
   );
 }
 
-// ─── AddGoalModal ─────────────────────────────────────────────────────────
-function AddGoalModal({
+// ─── GoalFormModal (cria ou edita) ─────────────────────────────────────────
+function GoalFormModal({
+  goal,
   weekStart,
   onClose,
-  onCreated,
+  onSaved,
 }: {
+  goal: Goal | null;
   weekStart: string;
   onClose: () => void;
-  onCreated: () => void;
+  onSaved: () => void;
 }) {
-  const [title, setTitle] = useState('');
-  const [target, setTarget] = useState(1);
-  const [isRecurring, setIsRecurring] = useState(true);
+  const isEdit = !!goal;
+  const [title, setTitle] = useState(goal?.title ?? '');
+  const [target, setTarget] = useState(goal?.target ?? 1);
+  const [isRecurring, setIsRecurring] = useState(goal?.recurring ?? true);
+  const [categoryId, setCategoryId] = useState<string | null>(goal?.categoryId ?? null);
   const [error, setError] = useState('');
 
-  const createMutation = useMutation({
+  const { data: categories = [] } = useQuery<Category[]>({
+    queryKey: ['categories'],
+    queryFn: () => api('/categories'),
+  });
+
+  const saveMutation = useMutation({
     mutationFn: () =>
-      api('/goals', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: title.trim(),
-          target,
-          weekStart: isRecurring ? null : weekStart,
-        }),
-      }),
-    onSuccess: onCreated,
-    onError: (e) => setError(e instanceof Error ? e.message : 'Erro ao criar'),
+      isEdit
+        ? api(`/goals/${goal!.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ title: title.trim(), target, categoryId }),
+          })
+        : api('/goals', {
+            method: 'POST',
+            body: JSON.stringify({
+              title: title.trim(),
+              target,
+              weekStart: isRecurring ? null : weekStart,
+              categoryId,
+            }),
+          }),
+    onSuccess: onSaved,
+    onError: (e) => setError(e instanceof Error ? e.message : 'Erro ao salvar'),
   });
 
   function submit() {
     if (!title.trim()) { setError('Informe um título'); return; }
-    createMutation.mutate();
+    saveMutation.mutate();
   }
 
   return (
@@ -305,7 +339,7 @@ function AddGoalModal({
             overflowY: 'auto',
           }}
         >
-        <div style={{ fontWeight: 700, fontSize: '1.05rem', marginBottom: 18 }}>Nova Meta</div>
+        <div style={{ fontWeight: 700, fontSize: '1.05rem', marginBottom: 18 }}>{isEdit ? 'Editar meta' : 'Nova meta'}</div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Title */}
@@ -351,35 +385,78 @@ function AddGoalModal({
             </div>
           )}
 
-          {/* Type — flat segmented control */}
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Tipo
-            </label>
-            <div style={{ display: 'flex', background: 'var(--bg-surface-2)', borderRadius: 'var(--r-md)', padding: 3, gap: 3 }}>
-              {([
-                { val: true,  label: 'Recorrente',  Icon: Repeat   },
-                { val: false, label: 'Esta semana', Icon: Calendar },
-              ] as const).map(({ val, label, Icon }) => (
-                <button
-                  key={String(val)}
-                  onClick={() => setIsRecurring(val)}
-                  style={{
-                    flex: 1, padding: '8px 6px', borderRadius: 'calc(var(--r-md) - 3px)', cursor: 'pointer', border: 'none',
-                    background: isRecurring === val ? 'var(--bg-surface)' : 'transparent',
-                    boxShadow: isRecurring === val ? 'var(--shadow-xs)' : 'none',
-                    transition: 'all 0.18s',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-                  }}
-                >
-                  <Icon size={13} color={isRecurring === val ? 'var(--brand)' : 'var(--text-muted)'} />
-                  <span style={{ fontSize: '0.82rem', fontWeight: isRecurring === val ? 700 : 500, color: isRecurring === val ? 'var(--brand)' : 'var(--text-muted)' }}>
-                    {label}
-                  </span>
-                </button>
-              ))}
+          {/* Type — flat segmented control (só na criação; não é editável depois) */}
+          {!isEdit ? (
+            <div>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Tipo
+              </label>
+              <div style={{ display: 'flex', background: 'var(--bg-surface-2)', borderRadius: 'var(--r-md)', padding: 3, gap: 3 }}>
+                {([
+                  { val: true,  label: 'Recorrente',  Icon: Repeat   },
+                  { val: false, label: 'Esta semana', Icon: Calendar },
+                ] as const).map(({ val, label, Icon }) => (
+                  <button
+                    key={String(val)}
+                    onClick={() => setIsRecurring(val)}
+                    style={{
+                      flex: 1, padding: '8px 6px', borderRadius: 'calc(var(--r-md) - 3px)', cursor: 'pointer', border: 'none',
+                      background: isRecurring === val ? 'var(--bg-surface)' : 'transparent',
+                      boxShadow: isRecurring === val ? 'var(--shadow-xs)' : 'none',
+                      transition: 'all 0.18s',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                    }}
+                  >
+                    <Icon size={13} color={isRecurring === val ? 'var(--brand)' : 'var(--text-muted)'} />
+                    <span style={{ fontSize: '0.82rem', fontWeight: isRecurring === val ? 700 : 500, color: isRecurring === val ? 'var(--brand)' : 'var(--text-muted)' }}>
+                      {label}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              {goal!.recurring ? <Repeat size={13} /> : <Calendar size={13} />}
+              {goal!.recurring ? 'Meta recorrente (toda semana)' : `Meta desta semana`}
+            </div>
+          )}
+
+          {/* Category — liga a meta a uma categoria de rotina; ao completar uma tarefa
+              dessa categoria, o progresso desta meta avança sozinho. */}
+          {categories.length > 0 && (
+            <div>
+              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Categoria (opcional)
+              </label>
+              <div className="cat-option-grid">
+                <div
+                  className={`cat-option${!categoryId ? ' selected' : ''}`}
+                  onClick={() => setCategoryId(null)}
+                >
+                  <div className="cat-option-dot" style={{ background: 'var(--border-strong)' }} />
+                  <span className="cat-option-name" style={{ color: 'var(--text-muted)' }}>Nenhuma</span>
+                  {!categoryId && <Check size={14} color="var(--brand)" style={{ marginLeft: 'auto' }} />}
+                </div>
+                {categories.map((cat) => (
+                  <div
+                    key={cat.id}
+                    className={`cat-option${categoryId === cat.id ? ' selected' : ''}`}
+                    onClick={() => setCategoryId(cat.id)}
+                  >
+                    <div className="cat-option-dot" style={{ background: cat.color }} />
+                    <span className="cat-option-name">{cat.name}</span>
+                    {categoryId === cat.id && <Check size={14} color="var(--brand)" style={{ marginLeft: 'auto' }} />}
+                  </div>
+                ))}
+              </div>
+              {categoryId && (
+                <div className="text-xs text-muted" style={{ marginTop: 6 }}>
+                  Completar uma rotina dessa categoria avança esta meta automaticamente.
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {error && <div style={{ color: 'var(--danger)', fontSize: '0.82rem', marginTop: 6 }}>{error}</div>}
@@ -390,9 +467,9 @@ function AddGoalModal({
             className="btn btn-primary"
             style={{ flex: 2 }}
             onClick={submit}
-            disabled={createMutation.isPending}
+            disabled={saveMutation.isPending}
           >
-            {createMutation.isPending ? 'Criando…' : 'Criar meta'}
+            {saveMutation.isPending ? 'Salvando…' : isEdit ? 'Salvar' : 'Criar meta'}
           </button>
         </div>
         </div>
@@ -407,7 +484,7 @@ export function GoalsScreen() {
   const qc = useQueryClient();
   const todayISO = localISO(weekStartOf());
   const [weekStartISO, setWeekStartISO] = useState<string>(() => todayISO);
-  const [showModal, setShowModal] = useState(false);
+  const [formModal, setFormModal] = useState<{ open: boolean; goal: Goal | null }>({ open: false, goal: null });
 
   const { data: goals = [], isLoading } = useQuery<Goal[]>({
     queryKey: ['goals', weekStartISO],
@@ -468,7 +545,7 @@ export function GoalsScreen() {
 
           <button
             className="btn btn-primary btn-icon"
-            onClick={() => setShowModal(true)}
+            onClick={() => setFormModal({ open: true, goal: null })}
             style={{ borderRadius: '50%', width: 36, height: 36, padding: 0, flexShrink: 0 }}
           >
             <Plus size={18} />
@@ -545,7 +622,7 @@ export function GoalsScreen() {
             <button
               className="btn btn-primary"
               style={{ marginTop: 16, gap: 6 }}
-              onClick={() => setShowModal(true)}
+              onClick={() => setFormModal({ open: true, goal: null })}
             >
               <Plus size={15} />
               Criar primeira meta
@@ -567,7 +644,7 @@ export function GoalsScreen() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {recurring.map((g) => (
-                <GoalCard key={g.id} goal={g} weekStart={weekStartISO} />
+                <GoalCard key={g.id} goal={g} weekStart={weekStartISO} onEdit={() => setFormModal({ open: true, goal: g })} />
               ))}
             </div>
           </div>
@@ -587,25 +664,26 @@ export function GoalsScreen() {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {thisWeek.map((g) => (
-                <GoalCard key={g.id} goal={g} weekStart={weekStartISO} />
+                <GoalCard key={g.id} goal={g} weekStart={weekStartISO} onEdit={() => setFormModal({ open: true, goal: g })} />
               ))}
             </div>
           </div>
         )}
       </div>
 
-      {showModal && (
-        <AddGoalModal
+      {formModal.open && (
+        <GoalFormModal
+          goal={formModal.goal}
           weekStart={weekStartISO}
-          onClose={() => setShowModal(false)}
-          onCreated={() => {
-            setShowModal(false);
+          onClose={() => setFormModal({ open: false, goal: null })}
+          onSaved={() => {
+            setFormModal({ open: false, goal: null });
             qc.invalidateQueries({ queryKey: ['goals', weekStartISO] });
           }}
         />
       )}
 
-      <BottomNav />
+      <AppNav />
     </>
   );
 }
