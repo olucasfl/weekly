@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, ChevronLeft, ChevronRight, Flame, Clock, Trophy, Check, X as XIcon } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, TrendingUp, Clock, Trophy, Check, X as XIcon } from 'lucide-react';
 import { api } from '../../lib/api';
 import { BottomNav } from '../../components/BottomNav';
 
@@ -15,7 +15,7 @@ type HistorySession = {
 };
 
 type History = {
-  summary: { totalSessions: number; totalMinutes: number; streakDays: number };
+  summary: { totalSessions: number; totalMinutes: number; weekMinutes: number };
   sessions: HistorySession[];
   page: number;
   pageSize: number;
@@ -89,9 +89,9 @@ export function HistoryScreen() {
               <div className="timer-stat-label">estudados</div>
             </div>
             <div className="timer-stat-tile">
-              <Flame size={18} color="var(--warning)" strokeWidth={2} />
-              <div className="timer-stat-value">{summary.streakDays}</div>
-              <div className="timer-stat-label">dias seguidos</div>
+              <TrendingUp size={18} color="var(--success)" strokeWidth={2} />
+              <div className="timer-stat-value">{fmtDuration(summary.weekMinutes)}</div>
+              <div className="timer-stat-label">essa semana</div>
             </div>
           </div>
         )}

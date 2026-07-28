@@ -110,27 +110,6 @@ export async function cancelCurrentSession(userId: string) {
   return { success: true };
 }
 
-function localDateKey(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function computeStreakDays(dateKeys: string[]): number {
-  const days = new Set(dateKeys);
-  if (days.size === 0) return 0;
-
-  const cursor = new Date();
-  if (!days.has(localDateKey(cursor))) {
-    cursor.setDate(cursor.getDate() - 1); // today has none yet — streak can still count from yesterday
-  }
-
-  let streak = 0;
-  while (days.has(localDateKey(cursor))) {
-    streak++;
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
-}
-
 const HISTORY_PAGE_SIZE = 10;
 
 export async function getHistory(userId: string, page: number) {
@@ -162,7 +141,11 @@ export async function getHistory(userId: string, page: number) {
   const completedSessions = resolved.filter((s) => s.completed);
   const totalSessions = completedSessions.length;
   const totalMinutes = completedSessions.reduce((sum, s) => sum + s.totalCycles * s.cycleMinutes, 0);
-  const streakDays = computeStreakDays(completedSessions.map((s) => localDateKey(new Date(s.startAt))));
+
+  const sevenDaysAgoMs = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+  const weekMinutes = completedSessions
+    .filter((s) => new Date(s.startAt).getTime() >= sevenDaysAgoMs)
+    .reduce((sum, s) => sum + s.totalCycles * s.cycleMinutes, 0);
 
   const totalPages = Math.max(1, Math.ceil(resolved.length / HISTORY_PAGE_SIZE));
   const safePage = Math.min(Math.max(1, page), totalPages);
@@ -172,7 +155,7 @@ export async function getHistory(userId: string, page: number) {
     .map(({ isResolved: _isResolved, ...s }) => s);
 
   return {
-    summary: { totalSessions, totalMinutes, streakDays },
+    summary: { totalSessions, totalMinutes, weekMinutes },
     sessions: pageItems,
     page: safePage,
     pageSize: HISTORY_PAGE_SIZE,
