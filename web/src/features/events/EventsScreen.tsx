@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Bell, CalendarDays, Search, ArrowRight, X, ChevronDown, ChevronUp, Star } from 'lucide-react';
 import { api } from '../../lib/api';
-import { BottomNav } from '../../components/BottomNav';
+import { AppNav } from '../../components/AppNav';
 import { TaskRowSkeleton } from '../../components/Skeleton';
 import { EVENT_COLOR, MONTH_NAMES } from '../../lib/constants';
 
@@ -285,7 +285,9 @@ export function EventsScreen() {
 
   const { data: events = [], isLoading } = useQuery<Event[]>({
     queryKey: ['events'],
-    queryFn: () => api('/tasks?type=scheduled'),
+    // includeDeleted=true: eventos apagados continuam aparecendo em "Passados" como histórico,
+    // do mesmo jeito que rotinas apagadas mantêm suas ocorrências passadas visíveis na semana.
+    queryFn: () => api('/tasks?type=scheduled&includeDeleted=true'),
   });
 
   const today = todayISO();
@@ -304,8 +306,10 @@ export function EventsScreen() {
     return (e.date ?? '') > today;
   }).sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.startTime.localeCompare(b.startTime));
 
+  // Eventos apagados entram aqui como histórico (desde que a data já tenha passado) — só
+  // ficam de fora de "Hoje"/"Próximos" (filtros acima já excluem e.deletedAt nesses dois).
   const past = filtered.filter((e) =>
-    !e.deletedAt && (e.endDate ? e.endDate : e.date ?? '') < today
+    (e.endDate ? e.endDate : e.date ?? '') < today
   ).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
 
   function dateRangeLabel(ev: Event) {
@@ -449,7 +453,9 @@ export function EventsScreen() {
                   <div className="task-name done">{ev.title}</div>
                   <div className="task-meta">
                     {ev.date ? formatDate(ev.date) : ''}{ev.endDate ? ` → ${formatDate(ev.endDate)}` : ''} · {ev.startTime}
-                    <span style={{ color: EVENT_COLOR, fontWeight: 600, marginLeft: 5, opacity: 0.6 }}>· Evento</span>
+                    <span style={{ color: EVENT_COLOR, fontWeight: 600, marginLeft: 5, opacity: 0.6 }}>
+                      · {ev.deletedAt ? 'Evento apagado' : 'Evento'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -459,7 +465,7 @@ export function EventsScreen() {
       </div>
 
       {modal.open && <EventModal event={modal.event} onClose={() => setModal({ open: false, event: null })} />}
-      <BottomNav />
+      <AppNav />
     </>
   );
 }

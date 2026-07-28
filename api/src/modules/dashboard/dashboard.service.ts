@@ -1,6 +1,7 @@
 import { prisma } from '../../lib/prisma.js';
 import { buildWeekOccurrences } from '../../../../shared/src/recurrence.js';
 import { getGoalsSummary } from '../goals/goals.service.js';
+import { getExtraOccurrencesForUser } from '../tasks/tasks.service.js';
 
 // In-memory streak cache: userId → { value, expiry }
 const streakCache = new Map<string, { value: number; expiry: number }>();
@@ -9,14 +10,20 @@ const STREAK_TTL = 5 * 60 * 1000; // 5 minutes
 export async function getDashboard(userId: string, weekStart: string) {
   const weekEnd = offsetDate(weekStart, 6);
 
-  const tasks = await prisma.task.findMany({
-    where: { userId, active: true },
-    include: { category: true },
-  });
+  const [tasks, completions, extraOccurrences] = await Promise.all([
+    prisma.task.findMany({ where: { userId, active: true }, include: { category: true } }),
+    prisma.completion.findMany({ where: { userId, date: { gte: weekStart, lte: weekEnd } } }),
+    getExtraOccurrencesForUser(userId, weekStart, weekEnd),
+  ]);
 
-  const completions = await prisma.completion.findMany({
-    where: { userId, date: { gte: weekStart, lte: weekEnd } },
-  });
+  // Days manually added to a routine outside its normal weekdays (POST /tasks/:id/extra-days) —
+  // without these, days the user explicitly added and completed never enter the total/completed count.
+  const extraByTaskId = new Map<string, string[]>();
+  for (const eo of extraOccurrences) {
+    const list = extraByTaskId.get(eo.taskId) ?? [];
+    list.push(eo.date);
+    extraByTaskId.set(eo.taskId, list);
+  }
 
   const occurrences = buildWeekOccurrences(
     tasks.map((t) => ({
@@ -25,11 +32,29 @@ export async function getDashboard(userId: string, weekStart: string) {
       type: t.type as 'RECURRING' | 'SCHEDULED',
       weekdays: t.weekdays,
       date: t.date ?? undefined,
+      // endDate: without it, a multi-day event collapses to a single occurrence
+      // instead of one per day it actually spans.
+      endDate: t.endDate ?? undefined,
       startTime: t.startTime,
       endTime: t.endTime ?? undefined,
       reminder: t.reminder,
       reminderMin: t.reminderMin,
       active: t.active,
+      // deletedAt: without it, buildWeekOccurrences' notDeleted() check never has anything
+      // to compare against, so a deleted routine keeps generating occurrences forever —
+      // occurrences the user can never mark done because the routine is gone from every
+      // screen, permanently dragging the percentage down.
+      deletedAt: t.deletedAt ?? undefined,
+      // Without these, buildWeekOccurrences defaults recurrenceType to 'weekly' for every
+      // task: biweekly routines get charged every week instead of every other week, and
+      // monthly/yearly routines (which don't use weekdays[]) vanish from the count entirely.
+      recurrenceType: t.recurrenceType,
+      biweeklyAnchor: t.biweeklyAnchor ?? undefined,
+      monthlyDay: t.monthlyDay ?? undefined,
+      monthlyWeekday: t.monthlyWeekday ?? undefined,
+      monthlyWeek: t.monthlyWeek ?? undefined,
+      yearlyMonth: t.yearlyMonth ?? undefined,
+      extraDays: extraByTaskId.get(t.id) ?? [],
     })),
     weekStart,
   );
@@ -97,6 +122,17 @@ async function computeStreak(userId: string, _weekStart: string): Promise<number
     reminder: t.reminder,
     reminderMin: t.reminderMin,
     active: t.active,
+    // Same fix as above — otherwise a deleted routine keeps showing up as an
+    // unfinished occurrence on every past day, permanently breaking the streak.
+    deletedAt: t.deletedAt ?? undefined,
+    // Same recurrence-type fix as the main occurrences mapping — otherwise the streak
+    // walk also treats every biweekly/monthly/yearly routine as if it were weekly.
+    recurrenceType: t.recurrenceType,
+    biweeklyAnchor: t.biweeklyAnchor ?? undefined,
+    monthlyDay: t.monthlyDay ?? undefined,
+    monthlyWeekday: t.monthlyWeekday ?? undefined,
+    monthlyWeek: t.monthlyWeek ?? undefined,
+    yearlyMonth: t.yearlyMonth ?? undefined,
   }));
 
   const today = new Date().toISOString().slice(0, 10);

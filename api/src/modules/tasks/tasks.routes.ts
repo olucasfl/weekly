@@ -32,9 +32,9 @@ export const tasksRoutes: FastifyPluginAsync = async (app) => {
       return reply.code(401).send({ statusCode: 401, message: 'Não autenticado' });
     }
 
-    const type = (request.query as { type?: string }).type;
+    const { type, includeDeleted } = request.query as { type?: string; includeDeleted?: string };
     const taskType = type === 'recurring' ? 'RECURRING' : type === 'scheduled' ? 'SCHEDULED' : undefined;
-    return listTasks(userId, taskType, false);
+    return listTasks(userId, taskType, includeDeleted === 'true');
   });
 
   app.post('/', async (request, reply) => {
