@@ -1,0 +1,17 @@
+# Reduz tokens em sessões abertas direto em web/. Fonte de verdade: web/CLAUDE.md.
+
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+package-lock.json
+
+.env
+.env.*
+!.env.example
+
+public/*.png
+public/*.ico
+public/*.jpg
+public/*.svg

@@ -1,0 +1,31 @@
+# Reduz tokens: exclui do contexto automático o que não ajuda a entender/editar o projeto.
+# Fonte de verdade fica em CLAUDE.md — leia-o antes de explorar o código.
+
+# deps e build
+node_modules/
+dist/
+build/
+.vite/
+coverage/
+*.tsbuildinfo
+
+# lockfiles (grandes, gerados, nunca editados manualmente)
+package-lock.json
+**/package-lock.json
+
+# segredos
+.env
+.env.*
+!.env.example
+
+# migrations geradas pelo Prisma — schema.prisma já é a fonte de verdade
+api/prisma/migrations/
+
+# assets binários
+web/public/*.png
+web/public/*.ico
+web/public/*.jpg
+web/public/*.svg
+
+# artefatos de planejamento internos, não fazem parte do código
+PLANO.md

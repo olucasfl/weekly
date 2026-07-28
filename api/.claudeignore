@@ -1,0 +1,15 @@
+# Reduz tokens em sessões abertas direto em api/. Fonte de verdade: api/CLAUDE.md.
+
+node_modules/
+dist/
+*.tsbuildinfo
+coverage/
+
+package-lock.json
+
+.env
+.env.*
+!.env.example
+
+# schema.prisma é a fonte de verdade do modelo; SQL gerado não precisa entrar no contexto
+prisma/migrations/
