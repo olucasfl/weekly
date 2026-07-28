@@ -17,6 +17,7 @@ const envSchema = z.object({
   BREVO_SENDER_EMAIL: z.string().default(''),
   BREVO_SENDER_NAME: z.string().default('Weekly'),
   APP_URL: z.string().default('http://localhost:5173'),
+  STUDY_TIMER_ALLOWED_USER_IDS: z.string().default(''),
 });
 
 export const env = envSchema.parse(process.env);

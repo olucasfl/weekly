@@ -30,6 +30,7 @@ model User {
   pushSubscriptions PushSubscription[]
   notes             Note[]
   extraOccurrences  ExtraOccurrence[]
+  studySessions     StudySession[]
 }
 
 model Category {
@@ -152,4 +153,19 @@ model Note {
 
   @@unique([userId, date])
   @@index([userId])
+}
+
+model StudySession {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startAt       DateTime
+  totalCycles   Int
+  cycleMinutes  Int       @default(30)
+  pausedAt      DateTime?
+  totalPausedMs Int       @default(0)
+  cancelledAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([userId, createdAt])
 }

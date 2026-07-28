@@ -18,6 +18,7 @@ import { dashboardRoutes } from './modules/dashboard/dashboard.routes.js';
 import { pushRoutes } from './modules/push/push.routes.js';
 import { notesRoutes } from './modules/notes/notes.routes.js';
 import { goalsRoutes } from './modules/goals/goals.routes.js';
+import { studyTimerRoutes } from './modules/study-timer/study-timer.routes.js';
 
 export async function buildApp() {
   const app = Fastify({ logger: true });
@@ -81,6 +82,7 @@ export async function buildApp() {
   await app.register(pushRoutes, { prefix: '/push' });
   await app.register(notesRoutes,  { prefix: '/notes' });
   await app.register(goalsRoutes,  { prefix: '/goals' });
+  await app.register(studyTimerRoutes, { prefix: '/study-timer' });
 
   app.setErrorHandler((error, request, reply) => {
     app.log.error(error);
