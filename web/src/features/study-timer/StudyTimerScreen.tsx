@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Timer, X, Plus, Sparkles, Pencil, Pause, Play, History, Maximize2, Minimize2 } from 'lucide-react';
+import { ArrowLeft, Timer, X, Plus, Sparkles, Pencil, Pause, Play, History, Maximize2, Minimize2, Eye, EyeOff } from 'lucide-react';
 import { api } from '../../lib/api';
 import { BottomNav } from '../../components/BottomNav';
 import { isPWA } from '../../components/SplashScreen';
@@ -69,6 +69,7 @@ export function StudyTimerScreen() {
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [focusMode, setFocusMode] = useState(false);
+  const [heroVisible, setHeroVisible] = useState(true);
 
   function showToast(type: 'success' | 'error', text: string) {
     setToast({ type, text });
@@ -151,19 +152,19 @@ export function StudyTimerScreen() {
   return (
     <>
       <div className="screen-header">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0, flex: 1 }}>
             <button
               onClick={() => navigate('/perfil')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', flexShrink: 0 }}
             >
               <ArrowLeft size={20} />
             </button>
-            <div style={{ fontWeight: 800, fontSize: '1.15rem', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+            <div style={{ fontWeight: 800, fontSize: '1.15rem', color: 'var(--text-primary)', letterSpacing: '-0.01em', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               Cronômetro de estudos
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
             <button
               onClick={() => navigate('/foco/historico')}
               className="btn btn-icon"
@@ -204,89 +205,108 @@ export function StudyTimerScreen() {
         {state && (
           <>
             <div className={`timer-hero${state.status === 'completed' ? ' is-completed' : ''}${state.isPaused ? ' is-paused' : ''}`}>
-              {state.status !== 'completed' && (
-                <div className="timer-hero-actions">
-                  {state.status === 'active' && (
-                    state.isPaused ? (
-                      <button
-                        className="timer-hero-icon-btn"
-                        onClick={() => resumeMutation.mutate()}
-                        disabled={resumeMutation.isPending}
-                        aria-label="Retomar sessão"
-                        title="Retomar sessão"
-                      >
-                        {resumeMutation.isPending ? <span className="icon-spin" /> : <Play size={15} strokeWidth={2.5} />}
-                      </button>
-                    ) : (
-                      <button
-                        className="timer-hero-icon-btn"
-                        onClick={() => pauseMutation.mutate()}
-                        disabled={pauseMutation.isPending}
-                        aria-label="Pausar sessão"
-                        title="Pausar sessão"
-                      >
-                        {pauseMutation.isPending ? <span className="icon-spin" /> : <Pause size={15} strokeWidth={2.5} />}
-                      </button>
-                    )
+              <div className="timer-hero-actions">
+                <button
+                  className="timer-hero-icon-btn"
+                  onClick={() => setHeroVisible((v) => !v)}
+                  aria-label={heroVisible ? 'Esconder cronômetro' : 'Mostrar cronômetro'}
+                  title={heroVisible ? 'Esconder cronômetro' : 'Mostrar cronômetro'}
+                >
+                  {heroVisible ? <Eye size={15} strokeWidth={2.5} /> : <EyeOff size={15} strokeWidth={2.5} />}
+                </button>
+                {state.status !== 'completed' && (
+                  <>
+                    {state.status === 'active' && (
+                      state.isPaused ? (
+                        <button
+                          className="timer-hero-icon-btn"
+                          onClick={() => resumeMutation.mutate()}
+                          disabled={resumeMutation.isPending}
+                          aria-label="Retomar sessão"
+                          title="Retomar sessão"
+                        >
+                          {resumeMutation.isPending ? <span className="icon-spin" /> : <Play size={15} strokeWidth={2.5} />}
+                        </button>
+                      ) : (
+                        <button
+                          className="timer-hero-icon-btn"
+                          onClick={() => pauseMutation.mutate()}
+                          disabled={pauseMutation.isPending}
+                          aria-label="Pausar sessão"
+                          title="Pausar sessão"
+                        >
+                          {pauseMutation.isPending ? <span className="icon-spin" /> : <Pause size={15} strokeWidth={2.5} />}
+                        </button>
+                      )
+                    )}
+                    <button
+                      className="timer-hero-icon-btn"
+                      onClick={() => setModal('edit')}
+                      aria-label="Editar sessão"
+                      title="Editar sessão"
+                    >
+                      <Pencil size={15} strokeWidth={2.5} />
+                    </button>
+                    <button
+                      className="timer-hero-icon-btn danger"
+                      onClick={() => setShowCancelConfirm(true)}
+                      aria-label="Cancelar sessão"
+                      title="Cancelar sessão"
+                    >
+                      <X size={15} strokeWidth={2.5} />
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {heroVisible ? (
+                <>
+                  {state.status === 'scheduled' && (
+                    <>
+                      <div className="timer-hero-label">Começa em</div>
+                      <div className="timer-hero-value">{fmtCountdown(new Date(state.startAt).getTime() - now)}</div>
+                      <div className="timer-hero-sub">Início às {fmtTime(state.startAt)}</div>
+                    </>
                   )}
-                  <button
-                    className="timer-hero-icon-btn"
-                    onClick={() => setModal('edit')}
-                    aria-label="Editar sessão"
-                    title="Editar sessão"
-                  >
-                    <Pencil size={15} strokeWidth={2.5} />
-                  </button>
-                  <button
-                    className="timer-hero-icon-btn danger"
-                    onClick={() => setShowCancelConfirm(true)}
-                    aria-label="Cancelar sessão"
-                    title="Cancelar sessão"
-                  >
-                    <X size={15} strokeWidth={2.5} />
-                  </button>
+                  {state.status === 'active' && state.isPaused && (
+                    <>
+                      <div className="timer-hero-label">Pausado</div>
+                      <div className="timer-hero-value">{fmtCountdown(new Date(state.endAt).getTime() - now)}</div>
+                      <div className="timer-hero-sub">Retome quando estiver pronto</div>
+                    </>
+                  )}
+                  {state.status === 'active' && !state.isPaused && (
+                    <>
+                      <div className="timer-hero-label">Tempo restante</div>
+                      <div className="timer-hero-value">{fmtCountdown(new Date(state.endAt).getTime() - now)}</div>
+                      <div className="timer-hero-sub">
+                        Ciclo {passedCount} de {session?.totalCycles} · termina às {fmtTime(state.endAt)}
+                      </div>
+                    </>
+                  )}
+                  {state.status === 'completed' && (
+                    <>
+                      <div className="timer-hero-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                        <Sparkles size={13} /> Sessão concluída
+                      </div>
+                      <div className="timer-hero-value">{fmtDuration((session?.totalCycles ?? 0) * (session?.cycleMinutes ?? 30))}</div>
+                      <div className="timer-hero-sub">de estudo focado — bom trabalho!</div>
+                    </>
+                  )}
+
+                  <div className="timer-hero-progress">
+                    <div className="timer-hero-progress-fill" style={{ width: `${progressPct}%` }} />
+                  </div>
+                </>
+              ) : (
+                <div className="timer-hero-hidden-msg">
+                  <EyeOff size={26} strokeWidth={1.5} />
+                  <div className="timer-hero-sub">Cronômetro oculto</div>
                 </div>
               )}
-
-              {state.status === 'scheduled' && (
-                <>
-                  <div className="timer-hero-label">Começa em</div>
-                  <div className="timer-hero-value">{fmtCountdown(new Date(state.startAt).getTime() - now)}</div>
-                  <div className="timer-hero-sub">Início às {fmtTime(state.startAt)}</div>
-                </>
-              )}
-              {state.status === 'active' && state.isPaused && (
-                <>
-                  <div className="timer-hero-label">Pausado</div>
-                  <div className="timer-hero-value">{fmtCountdown(new Date(state.endAt).getTime() - now)}</div>
-                  <div className="timer-hero-sub">Retome quando estiver pronto</div>
-                </>
-              )}
-              {state.status === 'active' && !state.isPaused && (
-                <>
-                  <div className="timer-hero-label">Tempo restante</div>
-                  <div className="timer-hero-value">{fmtCountdown(new Date(state.endAt).getTime() - now)}</div>
-                  <div className="timer-hero-sub">
-                    Ciclo {passedCount} de {session?.totalCycles} · termina às {fmtTime(state.endAt)}
-                  </div>
-                </>
-              )}
-              {state.status === 'completed' && (
-                <>
-                  <div className="timer-hero-label" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                    <Sparkles size={13} /> Sessão concluída
-                  </div>
-                  <div className="timer-hero-value">{fmtDuration((session?.totalCycles ?? 0) * (session?.cycleMinutes ?? 30))}</div>
-                  <div className="timer-hero-sub">de estudo focado — bom trabalho!</div>
-                </>
-              )}
-
-              <div className="timer-hero-progress">
-                <div className="timer-hero-progress-fill" style={{ width: `${progressPct}%` }} />
-              </div>
             </div>
 
-            <CheckpointList checkpoints={state.checkpoints} active={state.status === 'active' && !state.isPaused} />
+            <CheckpointList checkpoints={state.checkpoints} />
 
             {state.status === 'completed' && (
               <div style={{ display: 'flex', gap: 8, marginTop: 22 }}>

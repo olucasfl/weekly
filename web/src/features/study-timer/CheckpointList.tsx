@@ -7,7 +7,7 @@ function fmtTime(iso: string) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-export function CheckpointList({ checkpoints, active = false }: { checkpoints: StudyCheckpoint[]; active?: boolean }) {
+export function CheckpointList({ checkpoints }: { checkpoints: StudyCheckpoint[] }) {
   const prevPassedRef = useRef<Set<number>>(new Set());
   const [justPassed, setJustPassed] = useState<Set<number>>(new Set());
 
@@ -22,14 +22,12 @@ export function CheckpointList({ checkpoints, active = false }: { checkpoints: S
     }
   }, [checkpoints]);
 
-  const nextIndex = active ? checkpoints.find((c) => !c.passed)?.index : undefined;
   const lastIndex = checkpoints.length - 1;
 
   return (
     <div className="timer-grid">
       {checkpoints.map((cp) => {
         const classes = ['timer-tile', cp.passed ? 'passed' : 'upcoming'];
-        if (cp.index === nextIndex) classes.push('next');
         if (justPassed.has(cp.index)) classes.push('just-passed');
 
         return (

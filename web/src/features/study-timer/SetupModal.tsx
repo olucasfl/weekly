@@ -74,9 +74,9 @@ export function SetupModal({ onClose, session = null }: { onClose: () => void; s
           disabled={saveMutation.isPending}
           style={{ display: 'flex', flexDirection: 'column', gap: 14, border: 'none', padding: 0, margin: 0 }}
         >
-          <div>
+          <div style={{ minWidth: 0 }}>
             <label className="label" style={{ marginBottom: 8, display: 'block' }}>Modelos rápidos</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 8 }}>
               {TEMPLATES.map((t) => (
                 <button
                   key={t.key}
@@ -92,14 +92,14 @@ export function SetupModal({ onClose, session = null }: { onClose: () => void; s
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div className="field">
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 12 }}>
+            <div className="field" style={{ minWidth: 0 }}>
               <label className="label">Data</label>
-              <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: '100%', minWidth: 0 }} />
             </div>
-            <div className="field">
+            <div className="field" style={{ minWidth: 0 }}>
               <label className="label">Início</label>
-              <input className="input" type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+              <input className="input" type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ width: '100%', minWidth: 0 }} />
             </div>
           </div>
 
@@ -143,7 +143,7 @@ export function SetupModal({ onClose, session = null }: { onClose: () => void; s
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={onClose} disabled={saveMutation.isPending}>Cancelar</button>
           <button className="btn btn-primary" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-            {saveMutation.isPending ? 'Salvando…' : isEditing ? 'Salvar alterações' : 'Criar sessão'}
+            {saveMutation.isPending ? 'Salvando…' : isEditing ? 'Salvar' : 'Criar'}
           </button>
         </div>
       </div>

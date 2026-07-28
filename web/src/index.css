@@ -425,11 +425,12 @@ body::before {
 .modal {
   background: var(--bg-surface);
   border-radius: var(--r-xl);
-  width: 100%; max-width: 440px;
-  max-height: calc(100dvh - 80px); overflow-y: auto;
+  width: 100%; max-width: 440px; min-width: 0;
+  max-height: calc(100dvh - 80px); overflow-y: auto; overflow-x: hidden;
   padding: 24px 22px 28px;
   animation: scaleIn 0.2s cubic-bezier(0.22, 1, 0.36, 1);
   box-shadow: 0 24px 64px rgba(40,20,100,0.22), 0 1px 0 rgba(255,255,255,0.06) inset;
+  box-sizing: border-box;
 }
 .modal-handle { display: none; }
 .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
@@ -1252,12 +1253,23 @@ body::before {
   box-shadow: none;
 }
 
+.timer-hero-hidden-msg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 0 6px;
+  opacity: 0.85;
+}
+.timer-hero-hidden-msg .timer-hero-sub { margin-top: 0; }
+
 /* Checkpoint grid — squares side by side, more columns as the
    viewport grows */
 .timer-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
   gap: 12px;
+  min-width: 0;
 }
 @media (min-width: 640px) {
   .timer-grid { grid-template-columns: repeat(auto-fill, minmax(126px, 1fr)); gap: 16px; }
@@ -1293,8 +1305,6 @@ body::before {
   text-transform: uppercase;
   letter-spacing: 0.07em;
 }
-.timer-tile.next .timer-tile-index { color: var(--brand); }
-
 .timer-tile-time {
   font-size: 1.5rem;
   font-weight: 800;
@@ -1307,18 +1317,6 @@ body::before {
 @media (min-width: 1024px) { .timer-tile-time { font-size: 2.1rem; } }
 
 .timer-tile.upcoming { border-color: var(--border-strong); }
-
-.timer-tile.next {
-  border-color: var(--brand);
-  background: var(--brand-light);
-  box-shadow: var(--shadow-brand);
-  animation: timerTileIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both, timerPulse 2.4s ease-in-out infinite;
-}
-.timer-tile.next .timer-tile-time { color: var(--brand); }
-@keyframes timerPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(114, 85, 224, 0.4); }
-  50%      { box-shadow: 0 0 0 9px rgba(114, 85, 224, 0); }
-}
 
 .timer-tile.passed {
   background: var(--bg-surface-2);
@@ -1407,7 +1405,7 @@ body::before {
 /* History screen */
 .timer-stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 20px;
 }
@@ -1424,6 +1422,7 @@ body::before {
   border: 1px solid var(--border);
   box-shadow: var(--shadow-xs);
   text-align: center;
+  min-width: 0;
 }
 .timer-stat-value {
   font-size: 1.3rem;
@@ -1441,7 +1440,7 @@ body::before {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .timer-hero, .timer-hero::before, .timer-tile, .timer-tile.next, .timer-tile.just-passed {
+  .timer-hero, .timer-hero::before, .timer-tile, .timer-tile.just-passed {
     animation: none !important;
   }
 }
