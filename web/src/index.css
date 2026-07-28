@@ -1171,11 +1171,12 @@ body::before {
 .timer-hero.is-completed::before { display: none; }
 
 .timer-hero-actions {
-  position: absolute;
-  top: 14px;
-  right: 14px;
   display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
+  margin-bottom: 16px;
+  position: relative;
   z-index: 1;
 }
 .timer-hero-icon-btn {
