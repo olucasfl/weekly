@@ -140,17 +140,27 @@ body::before {
 /* Desktop/tablet: content moves next to the sidebar instead of being centered under
    a bottom nav that no longer exists at this width. Scoped to body.has-app-nav (set by
    AppNav on mount) so auth/verification screens — which never render AppNav — stay
-   centered edge to edge instead of leaving a phantom sidebar-sized gap. */
+   centered edge to edge instead of leaving a phantom sidebar-sized gap.
+
+   The content column is centered *within the space left after the sidebar*, not
+   flush against it — margin-left: sidebar-w + margin-right: auto only pins it to
+   the sidebar and dumps 100% of the leftover width on the right as dead space (a
+   real bug we shipped once already). Padding computed from the sidebar-adjusted
+   viewport width keeps it centered at any screen size instead. */
 @media (min-width: 900px) {
   body.has-app-nav .app-shell {
-    margin-left: var(--sidebar-w);
-    margin-right: auto;
-    max-width: 900px;
+    margin: 0;
+    max-width: none;
+    padding-left: max(24px, calc((100vw - var(--sidebar-w) - 900px) / 2 + var(--sidebar-w)));
+    padding-right: max(24px, calc((100vw - var(--sidebar-w) - 900px) / 2));
     padding-bottom: 40px;
   }
 }
 @media (min-width: 1280px) {
-  body.has-app-nav .app-shell { max-width: 1040px; }
+  body.has-app-nav .app-shell {
+    padding-left: max(24px, calc((100vw - var(--sidebar-w) - 1040px) / 2 + var(--sidebar-w)));
+    padding-right: max(24px, calc((100vw - var(--sidebar-w) - 1040px) / 2));
+  }
 }
 
 /* ─── Screen header ───────────────────────────────────────────── */
@@ -1215,19 +1225,28 @@ body::before {
 /* The sidebar-nav rules above also target .app-shell and win on specificity
    (body.has-app-nav .app-shell beats .app-shell--wide alone), which would
    otherwise clamp the timer's wide layout back down to 900/1040px whenever
-   the sidebar is visible (i.e. outside an active focus session). Restate the
-   same three breakpoints here, scoped to both classes, so wide still wins. */
-@media (min-width: 640px) {
-  body.has-app-nav .app-shell.app-shell--wide { max-width: 720px; }
-}
+   the sidebar is visible (i.e. outside an active focus session). Only kicks
+   in from 900px — below that the sidebar isn't shown yet, so the plain
+   .app-shell--wide rule above (centered via the base .app-shell margin:auto)
+   is already correct on its own. */
 @media (min-width: 900px) {
-  body.has-app-nav .app-shell.app-shell--wide { margin-left: var(--sidebar-w); margin-right: auto; }
+  body.has-app-nav .app-shell.app-shell--wide {
+    max-width: none;
+    padding-left: max(24px, calc((100vw - var(--sidebar-w) - 720px) / 2 + var(--sidebar-w)));
+    padding-right: max(24px, calc((100vw - var(--sidebar-w) - 720px) / 2));
+  }
 }
 @media (min-width: 1024px) {
-  body.has-app-nav .app-shell.app-shell--wide { max-width: 960px; }
+  body.has-app-nav .app-shell.app-shell--wide {
+    padding-left: max(24px, calc((100vw - var(--sidebar-w) - 960px) / 2 + var(--sidebar-w)));
+    padding-right: max(24px, calc((100vw - var(--sidebar-w) - 960px) / 2));
+  }
 }
 @media (min-width: 1440px) {
-  body.has-app-nav .app-shell.app-shell--wide { max-width: 1120px; }
+  body.has-app-nav .app-shell.app-shell--wide {
+    padding-left: max(24px, calc((100vw - var(--sidebar-w) - 1120px) / 2 + var(--sidebar-w)));
+    padding-right: max(24px, calc((100vw - var(--sidebar-w) - 1120px) / 2));
+  }
 }
 
 /* Focus mode hides the bottom nav — release the space reserved for it,
