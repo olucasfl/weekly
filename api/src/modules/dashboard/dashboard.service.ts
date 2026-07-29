@@ -60,7 +60,16 @@ export async function getDashboard(userId: string, weekStart: string) {
   );
 
   const completionMap = new Map(completions.map((c) => [`${c.taskId}:${c.date}`, c]));
-  const visible = occurrences.filter((o) => !completionMap.get(`${o.task.id}:${o.date}`)?.skipped);
+  const visible = occurrences
+    .filter((o) => !completionMap.get(`${o.task.id}:${o.date}`)?.skipped)
+    .filter((o) => {
+      if (!o.task.deletedAt) return true;
+      // Mirrors week.service.ts: a deleted task's pending occurrences are hidden from
+      // the week view too, only surviving there if already done. Without the same rule
+      // here, a pending occurrence the user can never even see keeps dragging the
+      // percentage down — "completed everything visible" still doesn't reach 100%.
+      return completionMap.get(`${o.task.id}:${o.date}`)?.done === true;
+    });
 
   const total = visible.length;
   const completed = visible.filter((o) => completionMap.get(`${o.task.id}:${o.date}`)?.done).length;
@@ -154,11 +163,16 @@ async function computeStreak(userId: string, _weekStart: string): Promise<number
   for (let i = 1; i <= 365; i++) {
     const dateStr = offsetDate(today, -i);
     const weekMonday = mondayOfDate(dateStr);
-    const occsForDay = buildWeekOccurrences(taskLikes, weekMonday).filter((o) => o.date === dateStr);
-
-    if (occsForDay.length === 0) continue; // dia sem tarefas — transparente
-
     const dayMap = byDate.get(dateStr) ?? new Map<string, boolean>();
+    // Same "hide pending occurrences of deleted tasks" rule as getDashboard above —
+    // otherwise a ghost pending occurrence the user can't see keeps breaking the streak
+    // on some day far in the past, every single day, forever.
+    const occsForDay = buildWeekOccurrences(taskLikes, weekMonday)
+      .filter((o) => o.date === dateStr)
+      .filter((o) => !o.task.deletedAt || dayMap.get(o.task.id) === true);
+
+    if (occsForDay.length === 0) continue; // dia sem tarefas (visíveis) — transparente
+
     const allDone = occsForDay.every((o) => dayMap.get(o.task.id) === true);
 
     if (!allDone) break;
