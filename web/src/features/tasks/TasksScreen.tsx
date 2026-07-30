@@ -167,6 +167,32 @@ function getNthWeekday(date: Date): number {
   return Math.ceil(date.getDate() / 7);
 }
 
+function recurrenceSortKey(task: Task): [number, number] {
+  switch (task.recurrenceType) {
+    case 'yearly':
+      return [task.yearlyMonth ?? 1, task.monthlyDay ?? 1];
+    case 'monthly_date':
+      return [0, task.monthlyDay ?? 1];
+    case 'monthly_weekday': {
+      const week = task.monthlyWeek ?? 1;
+      const weekIdx = week === -1 ? 4 : week - 1;
+      return [0, weekIdx * 7 + (task.monthlyWeekday ?? 0) + 1];
+    }
+    default: // weekly, biweekly
+      return [0, task.weekdays.length ? Math.min(...task.weekdays) : 0];
+  }
+}
+
+function sortTasks(list: Task[]): Task[] {
+  return [...list].sort((a, b) => {
+    const [aMajor, aMinor] = recurrenceSortKey(a);
+    const [bMajor, bMinor] = recurrenceSortKey(b);
+    if (aMajor !== bMajor) return aMajor - bMajor;
+    if (aMinor !== bMinor) return aMinor - bMinor;
+    return a.startTime.localeCompare(b.startTime);
+  });
+}
+
 function recurrenceLabel(task: Task): string {
   switch (task.recurrenceType) {
     case 'monthly_date':
@@ -592,10 +618,10 @@ export function TasksScreen() {
       else noCategory.push(t);
     }
     const result = categories
-      .map((cat) => ({ id: cat.id, name: cat.name, color: cat.color, tasks: byId.get(cat.id)! }))
+      .map((cat) => ({ id: cat.id, name: cat.name, color: cat.color, tasks: sortTasks(byId.get(cat.id)!) }))
       .filter((g) => g.tasks.length > 0);
     if (noCategory.length > 0) {
-      result.push({ id: 'none', name: 'Sem categoria', color: 'var(--border-strong)', tasks: noCategory });
+      result.push({ id: 'none', name: 'Sem categoria', color: 'var(--border-strong)', tasks: sortTasks(noCategory) });
     }
     return result;
   }, [filtered, categories]);
@@ -704,7 +730,7 @@ export function TasksScreen() {
           </div>
         )}
 
-        {!groups && filtered.map(renderTaskRow)}
+        {!groups && sortTasks(filtered).map(renderTaskRow)}
 
         {groups && groups.map((group) => (
           <div key={group.id}>
