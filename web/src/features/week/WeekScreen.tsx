@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Check, Leaf, CheckCheck, RotateCcw, List, LayoutGrid, CalendarDays, ArrowRight, Trash2, Plus, Trophy, Repeat } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Check, Leaf, CheckCheck, RotateCcw, List, LayoutGrid, CalendarDays, ArrowRight, Trash2, Plus, Repeat } from 'lucide-react';
 import { api } from '../../lib/api';
 import { localISO, weekStartOf, addDays } from '../../lib/date';
 import { EVENT_COLOR, DAY_NAMES, DAY_NAMES_FULL, MONTH_NAMES_LC } from '../../lib/constants';
@@ -12,6 +11,7 @@ import { TimeGridView } from './TimeGridView';
 import { MonthView } from './MonthView';
 import { TaskModal } from '../tasks/TasksScreen';
 import { EventModal } from '../events/EventsScreen';
+import { WeekGoalsCard } from '../goals/GoalsCard';
 
 type Occurrence = {
   taskId: string;
@@ -27,6 +27,7 @@ type Occurrence = {
   multiDayPos?: 'start' | 'middle' | 'end' | null;
   endDate?: string | null;
   notes?: string | null;
+  steps?: { id: string; title: string; done: boolean }[];
 };
 
 type AnyTask = {
@@ -52,7 +53,6 @@ function fmtShort(iso: string) {
 type ViewMode = 'list' | 'grid' | 'month';
 
 export function WeekScreen() {
-  const navigate = useNavigate();
   const today = new Date();
   const [weekStart, setWeekStart]       = useState(() => weekStartOf(today));
   const [selectedDate, setSelectedDate] = useState(() => localISO(today));
@@ -64,6 +64,7 @@ export function WeekScreen() {
   const [addingTaskId, setAddingTaskId] = useState<string | null>(null);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [expandedChecklist, setExpandedChecklist] = useState<Record<string, boolean>>({});
   const showAddExisting = sheetStep !== 'closed';
 
   useEffect(() => { localStorage.setItem('weekViewMode', viewMode); }, [viewMode]);
@@ -75,13 +76,6 @@ export function WeekScreen() {
   const { data: occurrences = [], isLoading } = useQuery<Occurrence[]>({
     queryKey: ['week', weekStartISO],
     queryFn: () => api(`/week?start=${weekStartISO}`),
-  });
-
-  // Live goals badge — turns the "Metas" link into an ambient reminder of the week's
-  // progress instead of a dead label nobody has a reason to notice.
-  const { data: goalsSummary } = useQuery<{ total: number; completed: number; percent: number }>({
-    queryKey: ['goals-summary', weekStartISO],
-    queryFn: () => api(`/goals/summary?weekStart=${weekStartISO}`),
   });
 
   const { data: allRecurring = [], isLoading: loadingRecurring } = useQuery<AnyTask[]>({
@@ -149,22 +143,32 @@ export function WeekScreen() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['week', weekStartISO] });
       // Concluir uma rotina pode ter avançado uma meta vinculada por categoria (ver
-      // completions.service.ts) — refetch pra o badge/tela de Metas refletirem na hora.
-      qc.invalidateQueries({ queryKey: ['goals-summary', weekStartISO] });
+      // completions.service.ts) — refetch pro card de metas refletir na hora.
       qc.invalidateQueries({ queryKey: ['goals', weekStartISO] });
     },
   });
 
   const bulkMutation = useMutation({
-    mutationFn: ({ taskIds, date, done }: { taskIds: string[]; date: string; done: boolean }) =>
-      Promise.all(taskIds.map((taskId) =>
-        api('/completions', { method: 'PUT', body: JSON.stringify({ taskId, date, done }) })
-      )),
-    onMutate: async ({ taskIds, date, done }) => {
+    // Itens com checklist não passam por PUT /completions direto (o backend exige todas as
+    // etapas concluídas primeiro) — pra "marcar todos" completar eles também, marca cada etapa.
+    mutationFn: ({ items, date, done }: { items: Occurrence[]; date: string; done: boolean }) =>
+      Promise.all(items.map((item) => {
+        if (done && item.steps && item.steps.length > 0) {
+          return Promise.all(item.steps.map((s) =>
+            api(`/tasks/${item.taskId}/steps/${s.id}/completion`, { method: 'PUT', body: JSON.stringify({ date, done: true }) })
+          ));
+        }
+        return api('/completions', { method: 'PUT', body: JSON.stringify({ taskId: item.taskId, date, done }) });
+      })),
+    onMutate: async ({ items, date, done }) => {
       await qc.cancelQueries({ queryKey: ['week', weekStartISO] });
       const prev = qc.getQueryData<Occurrence[]>(['week', weekStartISO]);
+      const ids = new Set(items.map((i) => i.taskId));
       qc.setQueryData<Occurrence[]>(['week', weekStartISO], (old) =>
-        old?.map((o) => taskIds.includes(o.taskId) && o.date === date ? { ...o, done } : o) ?? []
+        old?.map((o) => ids.has(o.taskId) && o.date === date
+          ? { ...o, done, steps: o.steps ? o.steps.map((s) => ({ ...s, done })) : o.steps }
+          : o
+        ) ?? []
       );
       return { prev };
     },
@@ -174,7 +178,31 @@ export function WeekScreen() {
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['week', weekStartISO] });
-      qc.invalidateQueries({ queryKey: ['goals-summary', weekStartISO] });
+      qc.invalidateQueries({ queryKey: ['goals', weekStartISO] });
+    },
+  });
+
+  const toggleStepMutation = useMutation({
+    mutationFn: ({ taskId, stepId, date, done }: { taskId: string; stepId: string; date: string; done: boolean }) =>
+      api(`/tasks/${taskId}/steps/${stepId}/completion`, { method: 'PUT', body: JSON.stringify({ date, done }) }),
+    onMutate: async ({ taskId, stepId, date, done }) => {
+      await qc.cancelQueries({ queryKey: ['week', weekStartISO] });
+      const prev = qc.getQueryData<Occurrence[]>(['week', weekStartISO]);
+      qc.setQueryData<Occurrence[]>(['week', weekStartISO], (old) =>
+        old?.map((o) => {
+          if (o.taskId !== taskId || o.date !== date || !o.steps) return o;
+          const steps = o.steps.map((s) => (s.id === stepId ? { ...s, done } : s));
+          return { ...o, steps, done: steps.every((s) => s.done) };
+        }) ?? []
+      );
+      return { prev };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['week', weekStartISO], ctx.prev);
+      showError(err instanceof Error ? err.message : 'Erro ao marcar etapa. Tente novamente.');
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['week', weekStartISO] });
       qc.invalidateQueries({ queryKey: ['goals', weekStartISO] });
     },
   });
@@ -221,6 +249,18 @@ export function WeekScreen() {
     toggleMutation.mutate({ taskId, date, done });
   }
 
+  function onToggleStep(taskId: string, date: string, stepId: string, done: boolean, allSteps: { id: string; done: boolean }[]) {
+    if ('vibrate' in navigator) navigator.vibrate(20);
+    toggleStepMutation.mutate({ taskId, stepId, date, done });
+    // Se essa marcação completa o checklist inteiro, recolhe a lista de etapas sozinha logo
+    // depois — a ocorrência já assume o visual "feita" e a lista não fica aberta à toa.
+    const willAllBeDone = done && allSteps.every((s) => s.id === stepId || s.done);
+    if (willAllBeDone) {
+      const key = `${taskId}:${date}`;
+      setTimeout(() => setExpandedChecklist((c) => ({ ...c, [key]: false })), 700);
+    }
+  }
+
   const dayOccurrences = occurrences
     .filter((o) => o.date === selectedDate)
     .sort((a, b) => a.startTime.localeCompare(b.startTime));
@@ -254,30 +294,7 @@ export function WeekScreen() {
         <div className="row-between">
           <div>
             <LogoFull iconSize={22} textSize="sm" />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
-              <div className="screen-subtitle">{weekLabel}</div>
-              <button
-                onClick={() => navigate('/metas')}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 5,
-                  padding: '4px 10px 4px 7px',
-                  borderRadius: 'var(--r-full)',
-                  background: goalsSummary && goalsSummary.total > 0 && goalsSummary.completed === goalsSummary.total
-                    ? 'var(--success)'
-                    : 'var(--brand-grad)',
-                  border: 'none', cursor: 'pointer',
-                  fontSize: '0.75rem', fontWeight: 700, color: 'white',
-                  boxShadow: '0 2px 8px rgba(114,85,224,0.35)',
-                  letterSpacing: '0.01em',
-                  transition: 'opacity 0.15s, background 0.2s',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.opacity = '0.85')}
-                onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
-              >
-                <Trophy size={12} strokeWidth={2.2} />
-                {goalsSummary && goalsSummary.total > 0 ? `Metas · ${goalsSummary.completed}/${goalsSummary.total}` : 'Metas'}
-              </button>
-            </div>
+            <div className="screen-subtitle" style={{ marginTop: 2 }}>{weekLabel}</div>
           </div>
           <div className="row" style={{ gap: 4 }}>
             <div className="view-mode-tabs">
@@ -331,6 +348,10 @@ export function WeekScreen() {
         )}
       </div>
 
+      <div style={{ padding: '10px 20px 0' }}>
+        <WeekGoalsCard weekStartISO={weekStartISO} />
+      </div>
+
       {/* ─── Main content ────────────────────────────────────────── */}
       {viewMode === 'grid' && (
         <div style={{ flex: 1, overflow: 'hidden', padding: '8px 0 0' }}>
@@ -365,7 +386,7 @@ export function WeekScreen() {
                   className="btn-bulk"
                   title="Marcar todos"
                   disabled={doneCount === dayOccurrences.length || bulkMutation.isPending}
-                  onClick={() => bulkMutation.mutate({ taskIds: dayOccurrences.filter((o) => !o.done).map((o) => o.taskId), date: selectedDate, done: true })}
+                  onClick={() => bulkMutation.mutate({ items: dayOccurrences.filter((o) => !o.done), date: selectedDate, done: true })}
                 >
                   <CheckCheck size={14} strokeWidth={2} />
                 </button>
@@ -373,7 +394,7 @@ export function WeekScreen() {
                   className="btn-bulk"
                   title="Desmarcar todos"
                   disabled={doneCount === 0 || bulkMutation.isPending}
-                  onClick={() => bulkMutation.mutate({ taskIds: dayOccurrences.filter((o) => o.done).map((o) => o.taskId), date: selectedDate, done: false })}
+                  onClick={() => bulkMutation.mutate({ items: dayOccurrences.filter((o) => o.done), date: selectedDate, done: false })}
                 >
                   <RotateCcw size={13} strokeWidth={2} />
                 </button>
@@ -395,6 +416,11 @@ export function WeekScreen() {
           {dayOccurrences.map((item) => {
             const color = item.category?.color ?? (item.type === 'SCHEDULED' ? EVENT_COLOR : undefined);
             const isConfirming = confirmSkip === item.taskId + item.date;
+            const hasSteps = !item.isMultiDay && !!item.steps && item.steps.length > 0;
+            const stepsDone = item.steps?.filter((s) => s.done).length ?? 0;
+            const stepsTotal = item.steps?.length ?? 0;
+            const checklistKey = `${item.taskId}:${item.date}`;
+            const isChecklistExpanded = !!expandedChecklist[checklistKey];
 
             if (item.isMultiDay) {
               const isStart = item.multiDayPos === 'start';
@@ -457,21 +483,42 @@ export function WeekScreen() {
                     <button className="btn btn-danger" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => { skipMutation.mutate({ taskId: item.taskId, date: item.date }); setConfirmSkip(null); }}>Sim</button>
                   </div>
                 ) : (
+                  <>
                   <div
                     className={`task-row${item.done ? ' done' : ''}`}
+                    onClick={hasSteps ? () => setExpandedChecklist((c) => ({ ...c, [checklistKey]: !c[checklistKey] })) : undefined}
                   >
                     {(item.category || item.type === 'SCHEDULED') && (
                       <div className="task-cat-bar" style={{ background: color }} />
                     )}
-                    <button
-                      className={`task-check${item.done ? ' checked' : ''}`}
-                      style={{ touchAction: 'manipulation' }}
-                      onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); onToggle(item.taskId, item.date, !item.done); }}
-                      onClick={() => onToggle(item.taskId, item.date, !item.done)}
-                      aria-label={item.done ? 'Desmarcar' : 'Marcar como feito'}
-                    >
-                      <Check size={11} strokeWidth={3} color="white" />
-                    </button>
+                    {hasSteps ? (
+                      <button
+                        style={{
+                          minWidth: 30, height: 22, borderRadius: 'var(--r-full)', padding: '0 7px',
+                          border: `2px solid ${item.done ? 'var(--brand)' : 'var(--brand-mid)'}`,
+                          background: item.done ? 'var(--brand)' : 'transparent',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          flexShrink: 0, cursor: 'pointer',
+                        }}
+                        onClick={(e) => { e.stopPropagation(); setExpandedChecklist((c) => ({ ...c, [checklistKey]: !c[checklistKey] })); }}
+                        aria-label={isChecklistExpanded ? 'Recolher etapas' : 'Ver etapas'}
+                      >
+                        {item.done
+                          ? <Check size={11} strokeWidth={3} color="white" />
+                          : <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--brand)' }}>{stepsDone}/{stepsTotal}</span>
+                        }
+                      </button>
+                    ) : (
+                      <button
+                        className={`task-check${item.done ? ' checked' : ''}`}
+                        style={{ touchAction: 'manipulation' }}
+                        onTouchEnd={(e) => { e.preventDefault(); e.stopPropagation(); onToggle(item.taskId, item.date, !item.done); }}
+                        onClick={() => onToggle(item.taskId, item.date, !item.done)}
+                        aria-label={item.done ? 'Desmarcar' : 'Marcar como feito'}
+                      >
+                        <Check size={11} strokeWidth={3} color="white" />
+                      </button>
+                    )}
                     <div className="task-info">
                       <div className={`task-name${item.done ? ' done' : ''}`}>{item.title}</div>
                       <div className="task-meta">
@@ -481,9 +528,17 @@ export function WeekScreen() {
                         ) : item.type === 'SCHEDULED' ? (
                           <span style={{ color: EVENT_COLOR, fontWeight: 600, marginLeft: 5 }}>· Evento</span>
                         ) : null}
+                        {hasSteps && (
+                          <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: 5 }}>· {stepsDone}/{stepsTotal} etapas</span>
+                        )}
                       </div>
                       {item.notes && <div className="task-notes">{item.notes}</div>}
                     </div>
+                    {hasSteps && (
+                      isChecklistExpanded
+                        ? <ChevronUp size={14} strokeWidth={2} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                        : <ChevronDown size={14} strokeWidth={2} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+                    )}
                     <button
                       className="btn-skip"
                       onClick={(e) => { e.stopPropagation(); setConfirmSkip(item.taskId + item.date); }}
@@ -492,6 +547,33 @@ export function WeekScreen() {
                       <Trash2 size={13} strokeWidth={1.8} />
                     </button>
                   </div>
+                  {hasSteps && isChecklistExpanded && (
+                    <div style={{ padding: '2px 14px 10px 40px', display: 'flex', flexDirection: 'column', gap: 7 }}>
+                      {item.steps!.map((s) => (
+                        <div
+                          key={s.id}
+                          style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+                          onClick={() => onToggleStep(item.taskId, item.date, s.id, !s.done, item.steps!)}
+                        >
+                          <button
+                            className={`task-check${s.done ? ' checked' : ''}`}
+                            style={{ width: 17, height: 17 }}
+                            aria-label={s.done ? 'Desmarcar etapa' : 'Marcar etapa como feita'}
+                          >
+                            <Check size={9} strokeWidth={3} color="white" />
+                          </button>
+                          <span style={{
+                            fontSize: '0.82rem',
+                            color: s.done ? 'var(--text-muted)' : 'var(--text-secondary)',
+                            textDecoration: s.done ? 'line-through' : 'none',
+                          }}>
+                            {s.title}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  </>
                 )}
               </div>
             );

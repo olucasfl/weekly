@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Bell, CalendarDays, Search, ArrowRight, X, ChevronDown, ChevronUp, Star } from 'lucide-react';
+import { Plus, Bell, CalendarDays, Search, ArrowRight, X, ChevronDown, ChevronUp, Star, ListChecks } from 'lucide-react';
 import { api } from '../../lib/api';
 import { AppNav } from '../../components/AppNav';
 import { TaskRowSkeleton } from '../../components/Skeleton';
 import { EVENT_COLOR, MONTH_NAMES } from '../../lib/constants';
+import { ChecklistFieldEditor, type ChecklistStep } from '../../components/ChecklistFieldEditor';
+
+type EventStep = { id: string; title: string };
 
 type Event = {
   id: string;
@@ -20,6 +23,7 @@ type Event = {
   active: boolean;
   deletedAt?: string | null;
   notes?: string | null;
+  steps?: EventStep[];
 };
 
 const REMINDER_OPTIONS: { value: number; label: string }[] = [
@@ -60,8 +64,10 @@ type FormData = {
   reminderMin: number;
   important: boolean;
   countdownDays: number;
+  checklistEnabled: boolean;
+  steps: ChecklistStep[];
 };
-const EMPTY: FormData = { title: '', notes: '', date: todayISO(), endDate: '', startTime: '09:00', endTime: '', reminder: true, reminderMin: 60, important: false, countdownDays: 7 };
+const EMPTY: FormData = { title: '', notes: '', date: todayISO(), endDate: '', startTime: '09:00', endTime: '', reminder: true, reminderMin: 60, important: false, countdownDays: 7, checklistEnabled: false, steps: [] };
 
 export function EventModal({ event, initialDate, onClose, onSaved }: { event: Event | null; initialDate?: string; onClose: () => void; onSaved?: () => void }) {
   const qc = useQueryClient();
@@ -80,6 +86,8 @@ export function EventModal({ event, initialDate, onClose, onSaved }: { event: Ev
           reminderMin: event.reminderMin,
           important: event.important ?? false,
           countdownDays: event.countdownDays ?? 7,
+          checklistEnabled: (event.steps?.length ?? 0) > 0,
+          steps: (event.steps ?? []).map((s) => ({ key: s.id, id: s.id, title: s.title })),
         }
       : (initialDate ? { ...EMPTY, date: initialDate } : EMPTY),
   );
@@ -117,6 +125,7 @@ export function EventModal({ event, initialDate, onClose, onSaved }: { event: Ev
       setError('O horário de fim deve ser após o de início'); return;
     }
     if (isMultiDay && form.endDate <= form.date) { setError('Data de fim deve ser após a data de início'); return; }
+    if (form.checklistEnabled && form.steps.every((s) => !s.title.trim())) { setError('Adicione pelo menos uma etapa'); return; }
     setError('');
     upsert.mutate({
       title: form.title.trim(),
@@ -132,6 +141,9 @@ export function EventModal({ event, initialDate, onClose, onSaved }: { event: Ev
       important: form.important,
       countdownDays: form.important ? form.countdownDays : null,
       active: true,
+      steps: form.checklistEnabled
+        ? form.steps.filter((s) => s.title.trim()).map((s) => ({ id: s.id, title: s.title.trim() }))
+        : [],
     });
   }
 
@@ -153,6 +165,27 @@ export function EventModal({ event, initialDate, onClose, onSaved }: { event: Ev
           <div className="field">
             <label className="label">Descrição (opcional)</label>
             <textarea className="input" rows={2} style={{ resize: 'none', minHeight: 60 }} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Anotações sobre este evento…" />
+          </div>
+
+          <div>
+            <div className="toggle-row">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <ListChecks size={14} strokeWidth={2} color="var(--brand)" />
+                <div>
+                  <div className="toggle-label">Checklist</div>
+                  <div className="toggle-desc">Divida em etapas — só marca como feito quando tudo estiver concluído</div>
+                </div>
+              </div>
+              <label className="toggle">
+                <input type="checkbox" checked={form.checklistEnabled} onChange={(e) => setForm({ ...form, checklistEnabled: e.target.checked })} />
+                <div className="toggle-track" />
+              </label>
+            </div>
+            {form.checklistEnabled && (
+              <div style={{ marginTop: 8 }}>
+                <ChecklistFieldEditor steps={form.steps} onChange={(steps) => setForm({ ...form, steps })} />
+              </div>
+            )}
           </div>
 
           {/* Date range */}
@@ -386,6 +419,9 @@ export function EventsScreen() {
                     {dateRangeLabel(ev)}
                     {ev.endDate && <ArrowRight size={10} style={{ display: 'inline', marginLeft: 2, verticalAlign: 'middle' }} />}
                     <span style={{ color: EVENT_COLOR, fontWeight: 600, marginLeft: 5 }}>· {ev.endDate ? 'Multi-dia' : 'Hoje'}</span>
+                    {ev.steps && ev.steps.length > 0 && (
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: 5 }}>· {ev.steps.length} etapa{ev.steps.length !== 1 ? 's' : ''}</span>
+                    )}
                   </div>
                 </div>
                 {ev.reminder && <Bell size={14} strokeWidth={1.8} color={EVENT_COLOR} />}
@@ -420,6 +456,9 @@ export function EventsScreen() {
                   <div className="task-meta">
                     {dateRangeLabel(ev)}
                     <span style={{ color: EVENT_COLOR, fontWeight: 600, marginLeft: 5 }}>· {ev.endDate ? 'Multi-dia' : 'Evento'}</span>
+                    {ev.steps && ev.steps.length > 0 && (
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: 5 }}>· {ev.steps.length} etapa{ev.steps.length !== 1 ? 's' : ''}</span>
+                    )}
                   </div>
                 </div>
                 {ev.reminder && <Bell size={14} strokeWidth={1.8} color="var(--text-muted)" />}

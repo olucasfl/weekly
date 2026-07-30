@@ -1,14 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  ChevronLeft, ChevronRight, Plus, Trash2, Check, Pencil,
-  ArrowLeft, Target, Repeat, Calendar, Trophy, Sparkles,
+  Plus, Trash2, Check, Pencil,
+  Target, Repeat, Calendar, Trophy, Sparkles, ChevronDown, ChevronUp,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
-import { localISO, weekStartOf, addDays } from '../../lib/date';
-import { AppNav } from '../../components/AppNav';
-import { MONTH_NAMES_LC } from '../../lib/constants';
 
 type Category = { id: string; name: string; color: string };
 
@@ -23,27 +19,6 @@ type Goal = {
   count: number;
   done: boolean;
 };
-
-function isoToDate(iso: string): Date {
-  return new Date(iso + 'T12:00:00');
-}
-
-function fmtWeekRange(weekStartISO: string): string {
-  const start = isoToDate(weekStartISO);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 6);
-  const sD = start.getDate();
-  const sM = MONTH_NAMES_LC[start.getMonth()];
-  const eD = end.getDate();
-  const eM = MONTH_NAMES_LC[end.getMonth()];
-  return sM === eM ? `${sD}–${eD} ${sM}` : `${sD} ${sM} – ${eD} ${eM}`;
-}
-
-function offsetISO(iso: string, days: number): string {
-  const d = isoToDate(iso);
-  d.setDate(d.getDate() + days);
-  return localISO(d);
-}
 
 // ─── ProgressDots ───────────────────────────────────────────────────────
 function ProgressDots({
@@ -139,7 +114,7 @@ function ProgressDots({
 }
 
 // ─── GoalCard ────────────────────────────────────────────────────────────
-function GoalCard({ goal, weekStart, onEdit }: { goal: Goal; weekStart: string; onEdit: () => void }) {
+export function GoalCard({ goal, weekStart, onEdit }: { goal: Goal; weekStart: string; onEdit: () => void }) {
   const qc = useQueryClient();
   const [confirmDel, setConfirmDel] = useState(false);
 
@@ -263,7 +238,7 @@ function GoalCard({ goal, weekStart, onEdit }: { goal: Goal; weekStart: string; 
 }
 
 // ─── GoalFormModal (cria ou edita) ─────────────────────────────────────────
-function GoalFormModal({
+export function GoalFormModal({
   goal,
   weekStart,
   onClose,
@@ -478,12 +453,12 @@ function GoalFormModal({
   );
 }
 
-// ─── GoalsScreen ──────────────────────────────────────────────────────────
-export function GoalsScreen() {
-  const navigate = useNavigate();
+// ─── WeekGoalsCard ──────────────────────────────────────────────────────
+// Metas embutidas direto na aba Semana — sem tela própria: resumo compacto
+// que expande pra marcar progresso e criar/editar sem sair da tela mais usada.
+export function WeekGoalsCard({ weekStartISO }: { weekStartISO: string }) {
   const qc = useQueryClient();
-  const todayISO = localISO(weekStartOf());
-  const [weekStartISO, setWeekStartISO] = useState<string>(() => todayISO);
+  const [expanded, setExpanded] = useState(false);
   const [formModal, setFormModal] = useState<{ open: boolean; goal: Goal | null }>({ open: false, goal: null });
 
   const { data: goals = [], isLoading } = useQuery<Goal[]>({
@@ -491,199 +466,89 @@ export function GoalsScreen() {
     queryFn: () => api(`/goals?weekStart=${weekStartISO}`),
   });
 
-  const recurring = goals.filter((g) => g.recurring);
-  const thisWeek = goals.filter((g) => !g.recurring);
   const total = goals.length;
   const completed = goals.filter((g) => g.done).length;
   const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
-  const isCurrentWeek = weekStartISO === todayISO;
+  const allDone = total > 0 && completed === total;
+  const sortedGoals = [...goals].sort((a, b) => Number(b.recurring) - Number(a.recurring));
 
-  function prevWeek() { setWeekStartISO(offsetISO(weekStartISO, -7)); }
-  function nextWeek() { setWeekStartISO(offsetISO(weekStartISO, 7)); }
+  function closeForm() {
+    setFormModal({ open: false, goal: null });
+  }
+  function onSaved() {
+    closeForm();
+    qc.invalidateQueries({ queryKey: ['goals', weekStartISO] });
+  }
+
+  if (isLoading) return null;
 
   return (
     <>
-      {/* Header */}
-      <div className="screen-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+      {total === 0 ? (
+        <button
+          className="btn btn-ghost"
+          style={{ width: '100%', gap: 8, fontSize: '0.82rem', color: 'var(--text-muted)' }}
+          onClick={() => setFormModal({ open: true, goal: null })}
+        >
+          <Target size={15} strokeWidth={1.8} color="var(--brand)" />
+          Criar uma meta para esta semana
+        </button>
+      ) : (
+        <div
+          style={{
+            background: allDone ? 'var(--success-bg)' : 'var(--bg-surface)',
+            border: `1px solid ${allDone ? 'rgba(5,150,105,0.2)' : 'var(--border)'}`,
+            borderRadius: 'var(--r-md)',
+            overflow: 'hidden',
+            transition: 'background 0.25s, border-color 0.25s',
+          }}
+        >
           <button
-            onClick={() => navigate('/')}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              padding: '4px 2px', color: 'var(--text-secondary)',
-              display: 'flex', alignItems: 'center',
-            }}
+            onClick={() => setExpanded((v) => !v)}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
           >
-            <ArrowLeft size={20} />
+            {allDone ? <Trophy size={16} color="var(--success)" style={{ flexShrink: 0 }} /> : <Target size={16} color="var(--brand)" style={{ flexShrink: 0 }} />}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700, fontSize: '0.85rem', color: allDone ? 'var(--success)' : 'var(--text-primary)' }}>
+                  {allDone && <Sparkles size={13} />}
+                  {allDone ? 'Metas completas!' : 'Metas da semana'}
+                </span>
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: allDone ? 'var(--success)' : 'var(--text-muted)', flexShrink: 0 }}>{completed}/{total}</span>
+              </div>
+              <div style={{ height: 5, borderRadius: 99, background: 'var(--bg-surface-2)', overflow: 'hidden', marginTop: 6 }}>
+                <div style={{ height: '100%', width: `${percent}%`, background: allDone ? 'var(--success)' : 'var(--brand-grad)', borderRadius: 99, transition: 'width 0.3s' }} />
+              </div>
+            </div>
+            {expanded ? <ChevronUp size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} /> : <ChevronDown size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />}
           </button>
-          <div style={{ fontWeight: 800, fontSize: '1.15rem', color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
-            Metas
-          </div>
-        </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <button className="btn btn-icon" onClick={prevWeek} style={{ width: 30, height: 30 }}>
-              <ChevronLeft size={15} />
-            </button>
-            <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              {fmtWeekRange(weekStartISO)}
-            </span>
-            <button className="btn btn-icon" onClick={nextWeek} style={{ width: 30, height: 30 }}>
-              <ChevronRight size={15} />
-            </button>
-            {!isCurrentWeek && (
+          {expanded && (
+            <div style={{ padding: '0 10px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {sortedGoals.map((g) => (
+                <GoalCard key={g.id} goal={g} weekStart={weekStartISO} onEdit={() => setFormModal({ open: true, goal: g })} />
+              ))}
               <button
-                className="pill pill-sm"
-                style={{ cursor: 'pointer', border: 'none', marginLeft: 2 }}
-                onClick={() => setWeekStartISO(todayISO)}
+                className="btn btn-ghost"
+                style={{ gap: 6, fontSize: '0.8rem', color: 'var(--text-muted)' }}
+                onClick={() => setFormModal({ open: true, goal: null })}
               >
-                Hoje
+                <Plus size={14} strokeWidth={2} />
+                Nova meta
               </button>
-            )}
-          </div>
-
-          <button
-            className="btn btn-primary btn-icon"
-            onClick={() => setFormModal({ open: true, goal: null })}
-            style={{ borderRadius: '50%', width: 36, height: 36, padding: 0, flexShrink: 0 }}
-          >
-            <Plus size={18} />
-          </button>
+            </div>
+          )}
         </div>
-      </div>
-
-      {/* Body */}
-      <div className="screen-body">
-
-        {/* Summary card */}
-        {!isLoading && total > 0 && (
-          <div
-            style={{
-              background: 'var(--brand-grad)',
-              borderRadius: 'var(--r-lg)',
-              padding: '18px 20px',
-              color: 'white',
-              marginBottom: 22,
-              boxShadow: 'var(--shadow-brand)',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <div>
-                <div style={{ fontWeight: 700, fontSize: '0.92rem', opacity: 0.95 }}>
-                  {completed === total && total > 0
-                    ? <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><Sparkles size={14} />Semana completa!</span>
-                    : `${completed} de ${total} concluída${total !== 1 ? 's' : ''}`}
-                </div>
-                <div style={{ fontSize: '0.75rem', opacity: 0.7, marginTop: 2 }}>metas desta semana</div>
-              </div>
-              <div
-                style={{
-                  width: 52, height: 52, borderRadius: '50%',
-                  background: 'rgba(255,255,255,0.2)',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  border: '2px solid rgba(255,255,255,0.35)',
-                }}
-              >
-                <span style={{ fontWeight: 800, fontSize: '1rem', lineHeight: 1 }}>{percent}%</span>
-              </div>
-            </div>
-            <div style={{ height: 7, borderRadius: 99, background: 'rgba(255,255,255,0.22)', overflow: 'hidden' }}>
-              <div
-                style={{
-                  height: '100%',
-                  width: `${percent}%`,
-                  background: 'white',
-                  borderRadius: 99,
-                  transition: 'width 0.5s ease',
-                  boxShadow: '0 0 10px rgba(255,255,255,0.6)',
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Skeleton */}
-        {isLoading && (
-          <>
-            <div className="skeleton" style={{ height: 102, borderRadius: 'var(--r-lg)', marginBottom: 22 }} />
-            {[0, 1, 2].map((i) => (
-              <div key={i} className="skeleton" style={{ height: 74, borderRadius: 'var(--r-md)', marginBottom: 8 }} />
-            ))}
-          </>
-        )}
-
-        {/* Empty state */}
-        {!isLoading && goals.length === 0 && (
-          <div className="empty-state">
-            <Target size={44} strokeWidth={1.2} color="var(--brand)" />
-            <div className="empty-label">Sem metas</div>
-            <div className="empty-hint">Defina o que quer conquistar esta semana e acompanhe seu progresso.</div>
-            <button
-              className="btn btn-primary"
-              style={{ marginTop: 16, gap: 6 }}
-              onClick={() => setFormModal({ open: true, goal: null })}
-            >
-              <Plus size={15} />
-              Criar primeira meta
-            </button>
-          </div>
-        )}
-
-        {/* Recorrentes */}
-        {recurring.length > 0 && (
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
-              <Repeat size={13} color="var(--brand)" />
-              <span style={{ fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                Recorrentes
-              </span>
-              <span className="pill pill-sm">
-                {recurring.filter((g) => g.done).length}/{recurring.length}
-              </span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {recurring.map((g) => (
-                <GoalCard key={g.id} goal={g} weekStart={weekStartISO} onEdit={() => setFormModal({ open: true, goal: g })} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Esta semana */}
-        {thisWeek.length > 0 && (
-          <div style={{ marginBottom: 24 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10 }}>
-              <Calendar size={13} color="var(--brand)" />
-              <span style={{ fontWeight: 700, fontSize: '0.72rem', letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                Desta semana
-              </span>
-              <span className="pill pill-sm">
-                {thisWeek.filter((g) => g.done).length}/{thisWeek.length}
-              </span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {thisWeek.map((g) => (
-                <GoalCard key={g.id} goal={g} weekStart={weekStartISO} onEdit={() => setFormModal({ open: true, goal: g })} />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      )}
 
       {formModal.open && (
         <GoalFormModal
           goal={formModal.goal}
           weekStart={weekStartISO}
-          onClose={() => setFormModal({ open: false, goal: null })}
-          onSaved={() => {
-            setFormModal({ open: false, goal: null });
-            qc.invalidateQueries({ queryKey: ['goals', weekStartISO] });
-          }}
+          onClose={closeForm}
+          onSaved={onSaved}
         />
       )}
-
-      <AppNav />
     </>
   );
 }

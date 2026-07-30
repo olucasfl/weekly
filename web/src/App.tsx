@@ -15,7 +15,6 @@ import { TasksScreen }   from './features/tasks/TasksScreen';
 import { EventsScreen }  from './features/events/EventsScreen';
 import { ProgressScreen } from './features/progress/ProgressScreen';
 import { ProfileScreen } from './features/profile/ProfileScreen';
-import { GoalsScreen } from './features/goals/GoalsScreen';
 import { StudyTimerScreen } from './features/study-timer/StudyTimerScreen';
 import { HistoryScreen } from './features/study-timer/HistoryScreen';
 import { SplashScreen, isPWA } from './components/SplashScreen';
@@ -78,7 +77,6 @@ export default function App() {
         <Route path="/eventos"   element={<ProtectedRoute><EventsScreen /></ProtectedRoute>} />
         <Route path="/progresso" element={<ProtectedRoute><ProgressScreen /></ProtectedRoute>} />
         <Route path="/perfil"    element={<ProtectedRoute><ProfileScreen /></ProtectedRoute>} />
-        <Route path="/metas"     element={<ProtectedRoute><GoalsScreen /></ProtectedRoute>} />
         <Route path="/foco"      element={<ProtectedRoute><StudyTimerRoute><StudyTimerScreen /></StudyTimerRoute></ProtectedRoute>} />
         <Route path="/foco/historico" element={<ProtectedRoute><StudyTimerRoute><HistoryScreen /></StudyTimerRoute></ProtectedRoute>} />
       </Routes>

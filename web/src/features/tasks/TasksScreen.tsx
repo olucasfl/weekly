@@ -1,12 +1,15 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Bell, BellOff, CircleDot, CircleOff, CheckSquare, Check, Search, X, Star, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Bell, BellOff, CircleDot, CircleOff, CheckSquare, Check, Search, X, Star, ChevronDown, ChevronUp, ListChecks } from 'lucide-react';
 import { api } from '../../lib/api';
 import { AppNav } from '../../components/AppNav';
 import { TaskRowSkeleton } from '../../components/Skeleton';
 import { DAY_NAMES_FULL } from '../../lib/constants';
+import { ChecklistFieldEditor, type ChecklistStep } from '../../components/ChecklistFieldEditor';
 
 type Category = { id: string; name: string; color: string };
+
+type TaskStep = { id: string; title: string };
 
 type Task = {
   id: string;
@@ -28,9 +31,21 @@ type Task = {
   monthlyWeekday?: number | null;
   monthlyWeek?: number | null;
   yearlyMonth?: number | null;
+  pausedUntil?: string | null;
+  steps?: TaskStep[];
 };
 
 const DAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+function todayISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function fmtDDMM(iso: string): string {
+  const d = new Date(iso + 'T12:00:00');
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
 
 const PRESET_COLORS = [
   '#7255e0', '#a78bfa', '#818cf8', '#60a5fa', '#38bdf8',
@@ -227,6 +242,10 @@ type FormData = {
   monthlyWeek: number;
   important: boolean;
   countdownDays: number;
+  pausedEnabled: boolean;
+  pausedUntil: string;
+  checklistEnabled: boolean;
+  steps: ChecklistStep[];
 };
 
 const EMPTY_FORM: FormData = {
@@ -246,6 +265,10 @@ const EMPTY_FORM: FormData = {
   monthlyWeek: getNthWeekday(new Date()),
   important: false,
   countdownDays: 7,
+  pausedEnabled: false,
+  pausedUntil: '',
+  checklistEnabled: false,
+  steps: [],
 };
 
 export function TaskModal({ task, categories, initialWeekday, onClose, onSaved }: { task: Task | null; categories: Category[]; initialWeekday?: number; onClose: () => void; onSaved?: () => void }) {
@@ -272,6 +295,10 @@ export function TaskModal({ task, categories, initialWeekday, onClose, onSaved }
           monthlyWeek: task.monthlyWeek ?? getNthWeekday(new Date()),
           important: task.important ?? false,
           countdownDays: task.countdownDays ?? 7,
+          pausedEnabled: !!task.pausedUntil,
+          pausedUntil: task.pausedUntil ?? '',
+          checklistEnabled: (task.steps?.length ?? 0) > 0,
+          steps: (task.steps ?? []).map((s) => ({ key: s.id, id: s.id, title: s.title })),
         }
       : (initialWeekday !== undefined ? { ...EMPTY_FORM, weekdays: [initialWeekday] } : EMPTY_FORM),
   );
@@ -296,6 +323,8 @@ export function TaskModal({ task, categories, initialWeekday, onClose, onSaved }
     const needsDays = form.recurrenceType === 'weekly' || form.recurrenceType === 'biweekly';
     if (needsDays && form.weekdays.length === 0) { setError('Selecione pelo menos um dia'); return; }
     if (form.endTime && form.endTime <= form.startTime) { setError('O horário de fim deve ser após o de início'); return; }
+    if (form.checklistEnabled && form.steps.every((s) => !s.title.trim())) { setError('Adicione pelo menos uma etapa'); return; }
+    if (form.pausedEnabled && !form.pausedUntil) { setError('Escolha até quando pausar'); return; }
     setError('');
 
     const now = new Date();
@@ -333,6 +362,10 @@ export function TaskModal({ task, categories, initialWeekday, onClose, onSaved }
       reminderMin: form.reminderMin,
       active: form.active,
       categoryId: form.categoryId,
+      pausedUntil: form.pausedEnabled ? form.pausedUntil : null,
+      steps: form.checklistEnabled
+        ? form.steps.filter((s) => s.title.trim()).map((s) => ({ id: s.id, title: s.title.trim() }))
+        : [],
       ...extra,
     });
   }
@@ -362,6 +395,27 @@ export function TaskModal({ task, categories, initialWeekday, onClose, onSaved }
           <div className="field">
             <label className="label">Descrição (opcional)</label>
             <textarea className="input" rows={2} style={{ resize: 'none', minHeight: 60 }} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Anotações sobre esta tarefa…" />
+          </div>
+
+          <div>
+            <div className="toggle-row">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                <ListChecks size={14} strokeWidth={2} color="var(--brand)" />
+                <div>
+                  <div className="toggle-label">Checklist</div>
+                  <div className="toggle-desc">Divida em etapas — só marca como feita quando tudo estiver concluído</div>
+                </div>
+              </div>
+              <label className="toggle">
+                <input type="checkbox" checked={form.checklistEnabled} onChange={(e) => setForm({ ...form, checklistEnabled: e.target.checked })} />
+                <div className="toggle-track" />
+              </label>
+            </div>
+            {form.checklistEnabled && (
+              <div style={{ marginTop: 8 }}>
+                <ChecklistFieldEditor steps={form.steps} onChange={(steps) => setForm({ ...form, steps })} />
+              </div>
+            )}
           </div>
 
           <div className="field">
@@ -559,6 +613,30 @@ export function TaskModal({ task, categories, initialWeekday, onClose, onSaved }
               <div className="toggle-track" />
             </label>
           </div>
+
+          <div>
+            <div className="toggle-row">
+              <div>
+                <div className="toggle-label">Pausar temporariamente</div>
+                <div className="toggle-desc">Some da Semana até essa data e volta sozinha</div>
+              </div>
+              <label className="toggle">
+                <input type="checkbox" checked={form.pausedEnabled} onChange={(e) => setForm({ ...form, pausedEnabled: e.target.checked, pausedUntil: e.target.checked ? form.pausedUntil : '' })} />
+                <div className="toggle-track" />
+              </label>
+            </div>
+            {form.pausedEnabled && (
+              <div className="field" style={{ marginTop: 4 }}>
+                <input
+                  className="input"
+                  type="date"
+                  value={form.pausedUntil}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setForm({ ...form, pausedUntil: e.target.value })}
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {error && <div className="error-msg" style={{ marginTop: 12 }}>{error}</div>}
@@ -592,7 +670,17 @@ export function TasksScreen() {
   const [taskModal, setTaskModal] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null });
   const [catModal, setCatModal] = useState<{ open: boolean; category: Category | null }>({ open: false, category: null });
   const [search, setSearch] = useState('');
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('rotinasCollapsedCategories') ?? '{}');
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem('rotinasCollapsedCategories', JSON.stringify(collapsed));
+  }, [collapsed]);
 
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ['tasks'],
@@ -649,8 +737,16 @@ export function TasksScreen() {
                 · {task.category.name}
               </span>
             )}
+            {task.steps && task.steps.length > 0 && (
+              <span style={{ color: 'var(--text-muted)', fontWeight: 500, marginLeft: 5 }}>
+                · {task.steps.length} etapa{task.steps.length !== 1 ? 's' : ''}
+              </span>
+            )}
           </div>
         </div>
+        {task.pausedUntil && task.pausedUntil >= todayISO() && (
+          <span className="pill pill-sm pill-neutral">Pausada até {fmtDDMM(task.pausedUntil)}</span>
+        )}
         {!task.active && <span className="pill pill-sm pill-neutral">Inativo</span>}
         {task.reminder
           ? <Bell size={14} strokeWidth={1.8} color="var(--text-muted)" />
