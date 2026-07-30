@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Check, Leaf, CheckCheck, RotateCcw, List, LayoutGrid, CalendarDays, ArrowRight, Trash2, Plus, Trophy } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Check, Leaf, CheckCheck, RotateCcw, List, LayoutGrid, CalendarDays, ArrowRight, Trash2, Plus, Trophy, Repeat } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { localISO, weekStartOf, addDays } from '../../lib/date';
@@ -10,6 +10,8 @@ import { LogoFull } from '../../components/Logo';
 import { TaskRowSkeleton } from '../../components/Skeleton';
 import { TimeGridView } from './TimeGridView';
 import { MonthView } from './MonthView';
+import { TaskModal } from '../tasks/TasksScreen';
+import { EventModal } from '../events/EventsScreen';
 
 type Occurrence = {
   taskId: string;
@@ -57,9 +59,12 @@ export function WeekScreen() {
   const [viewMode, setViewMode]         = useState<ViewMode>(() => (localStorage.getItem('weekViewMode') as ViewMode) ?? 'list');
   const [toastError, setToastError]     = useState<string | null>(null);
   const [confirmSkip, setConfirmSkip]   = useState<string | null>(null); // taskId being confirmed
-  const [showAddExisting, setShowAddExisting] = useState(false);
+  const [sheetStep, setSheetStep] = useState<'closed' | 'choose' | 'existing'>('closed');
   const [addExistingTab, setAddExistingTab] = useState<'recurring' | 'events'>('recurring');
   const [addingTaskId, setAddingTaskId] = useState<string | null>(null);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [showTaskModal, setShowTaskModal] = useState(false);
+  const showAddExisting = sheetStep !== 'closed';
 
   useEffect(() => { localStorage.setItem('weekViewMode', viewMode); }, [viewMode]);
 
@@ -92,6 +97,12 @@ export function WeekScreen() {
   });
 
   const loadingAddModal = loadingRecurring || loadingEvents;
+
+  const { data: categories = [] } = useQuery<{ id: string; name: string; color: string }[]>({
+    queryKey: ['categories'],
+    queryFn: () => api('/categories'),
+    enabled: showTaskModal,
+  });
 
   const { data: note } = useQuery<{ date: string; content: string }>({
     queryKey: ['note', selectedDate],
@@ -196,7 +207,7 @@ export function WeekScreen() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['week', weekStartISO] });
-      setShowAddExisting(false);
+      setSheetStep('closed');
       setAddingTaskId(null);
     },
     onError: (e) => {
@@ -486,15 +497,15 @@ export function WeekScreen() {
             );
           })}
 
-          {/* Add existing task button */}
+          {/* Add to day button */}
           {!isLoading && (
             <button
               className="btn btn-ghost"
               style={{ width: '100%', gap: 8, fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: 4 }}
-              onClick={() => { setAddExistingTab('recurring'); setShowAddExisting(true); }}
+              onClick={() => setSheetStep('choose')}
             >
               <Plus size={14} strokeWidth={2} />
-              Adicionar afazer ou evento existente a este dia
+              Adicionar a este dia
             </button>
           )}
 
@@ -527,14 +538,91 @@ export function WeekScreen() {
         </div>
       )}
 
-      {/* Add Existing Modal */}
-      {showAddExisting && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setShowAddExisting(false)}>
+      {/* Choose what to add */}
+      {sheetStep === 'choose' && (
+        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setSheetStep('closed')}>
           <div className="modal">
             <div className="modal-handle" />
             <div className="modal-header">
               <span className="modal-title">Adicionar a {DAY_NAMES_FULL[new Date(selectedDate + 'T12:00:00').getDay()]}</span>
-              <button className="modal-close" onClick={() => setShowAddExisting(false)}>✕</button>
+              <button className="modal-close" onClick={() => setSheetStep('closed')}>✕</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                className="task-row"
+                style={{ textAlign: 'left', background: 'none', border: '1.5px solid var(--border)', borderRadius: 'var(--r-md)', cursor: 'pointer' }}
+                onClick={() => { setSheetStep('closed'); setShowEventModal(true); }}
+              >
+                <div className="task-cat-bar" style={{ background: EVENT_COLOR }} />
+                <div className="task-info">
+                  <div className="task-name">Novo evento</div>
+                  <div className="task-meta">Compromisso único em {fmtShort(selectedDate)}</div>
+                </div>
+                <CalendarDays size={16} color={EVENT_COLOR} style={{ flexShrink: 0 }} />
+              </button>
+              <button
+                className="task-row"
+                style={{ textAlign: 'left', background: 'none', border: '1.5px solid var(--border)', borderRadius: 'var(--r-md)', cursor: 'pointer' }}
+                onClick={() => { setSheetStep('closed'); setShowTaskModal(true); }}
+              >
+                <div className="task-cat-bar" style={{ background: 'var(--brand)' }} />
+                <div className="task-info">
+                  <div className="task-name">Nova rotina</div>
+                  <div className="task-meta">Tarefa recorrente, totalmente personalizável</div>
+                </div>
+                <Repeat size={16} color="var(--brand)" style={{ flexShrink: 0 }} />
+              </button>
+              <button
+                className="task-row"
+                style={{ textAlign: 'left', background: 'none', border: '1.5px solid var(--border)', borderRadius: 'var(--r-md)', cursor: 'pointer' }}
+                onClick={() => { setAddExistingTab('recurring'); setSheetStep('existing'); }}
+              >
+                <div className="task-cat-bar" style={{ background: 'var(--border-strong)' }} />
+                <div className="task-info">
+                  <div className="task-name">Usar rotina ou evento existente</div>
+                  <div className="task-meta">Adicionar algo já cadastrado a este dia</div>
+                </div>
+                <List size={16} color="var(--text-muted)" style={{ flexShrink: 0 }} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New event / new routine modals */}
+      {showEventModal && (
+        <EventModal
+          event={null}
+          initialDate={selectedDate}
+          onClose={() => setShowEventModal(false)}
+          onSaved={() => qc.invalidateQueries({ queryKey: ['week'] })}
+        />
+      )}
+      {showTaskModal && (
+        <TaskModal
+          task={null}
+          categories={categories}
+          initialWeekday={new Date(selectedDate + 'T12:00:00').getDay()}
+          onClose={() => setShowTaskModal(false)}
+          onSaved={() => qc.invalidateQueries({ queryKey: ['week'] })}
+        />
+      )}
+
+      {/* Add Existing Modal */}
+      {sheetStep === 'existing' && (
+        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setSheetStep('closed')}>
+          <div className="modal">
+            <div className="modal-handle" />
+            <div className="modal-header">
+              <button
+                onClick={() => setSheetStep('choose')}
+                style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, marginRight: 4 }}
+                aria-label="Voltar"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <span className="modal-title">Adicionar a {DAY_NAMES_FULL[new Date(selectedDate + 'T12:00:00').getDay()]}</span>
+              <button className="modal-close" onClick={() => setSheetStep('closed')}>✕</button>
             </div>
             {loadingAddModal ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '4px 0 8px' }}>

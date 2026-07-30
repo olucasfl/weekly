@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Bell, BellOff, CircleDot, CircleOff, CheckSquare, Check, Search, X, Star } from 'lucide-react';
+import { Plus, Bell, BellOff, CircleDot, CircleOff, CheckSquare, Check, Search, X, Star, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../../lib/api';
 import { AppNav } from '../../components/AppNav';
 import { TaskRowSkeleton } from '../../components/Skeleton';
@@ -167,6 +167,23 @@ function getNthWeekday(date: Date): number {
   return Math.ceil(date.getDate() / 7);
 }
 
+function recurrenceLabel(task: Task): string {
+  switch (task.recurrenceType) {
+    case 'monthly_date':
+      return `Dia ${task.monthlyDay}`;
+    case 'monthly_weekday': {
+      const weekIdx = WEEK_VALUES.indexOf(task.monthlyWeek ?? 1);
+      return `${WEEK_LABELS[weekIdx === -1 ? 0 : weekIdx]} ${DAY_NAMES_FULL[task.monthlyWeekday ?? 0]}`;
+    }
+    case 'yearly':
+      return `${task.monthlyDay} de ${MONTH_OPTIONS[(task.yearlyMonth ?? 1) - 1]}`;
+    case 'biweekly':
+      return `${task.weekdays.map((d) => DAYS[d]).join(' · ')} · quinzenal`;
+    default:
+      return task.weekdays.map((d) => DAYS[d]).join(' · ');
+  }
+}
+
 type FormData = {
   title: string;
   notes: string;
@@ -205,7 +222,7 @@ const EMPTY_FORM: FormData = {
   countdownDays: 7,
 };
 
-function TaskModal({ task, categories, onClose }: { task: Task | null; categories: Category[]; onClose: () => void }) {
+export function TaskModal({ task, categories, initialWeekday, onClose, onSaved }: { task: Task | null; categories: Category[]; initialWeekday?: number; onClose: () => void; onSaved?: () => void }) {
   const qc = useQueryClient();
   const isEdit = !!task;
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -230,7 +247,7 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
           important: task.important ?? false,
           countdownDays: task.countdownDays ?? 7,
         }
-      : EMPTY_FORM,
+      : (initialWeekday !== undefined ? { ...EMPTY_FORM, weekdays: [initialWeekday] } : EMPTY_FORM),
   );
   const [error, setError] = useState('');
 
@@ -239,7 +256,7 @@ function TaskModal({ task, categories, onClose }: { task: Task | null; categorie
       isEdit
         ? api(`/tasks/${task.id}`, { method: 'PATCH', body: JSON.stringify(data) })
         : api('/tasks', { method: 'POST', body: JSON.stringify(data) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }); onClose(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['tasks'] }); onSaved?.(); onClose(); },
     onError: (e) => setError(e instanceof Error ? e.message : 'Erro'),
   });
 
@@ -549,6 +566,7 @@ export function TasksScreen() {
   const [taskModal, setTaskModal] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null });
   const [catModal, setCatModal] = useState<{ open: boolean; category: Category | null }>({ open: false, category: null });
   const [search, setSearch] = useState('');
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const { data: tasks = [], isLoading } = useQuery<Task[]>({
     queryKey: ['tasks'],
@@ -562,6 +580,59 @@ export function TasksScreen() {
 
   const q = search.trim().toLowerCase();
   const filtered = q ? tasks.filter((t) => t.title.toLowerCase().includes(q) || t.category?.name.toLowerCase().includes(q)) : tasks;
+
+  const groups = useMemo(() => {
+    if (categories.length === 0) return null;
+    const byId = new Map<string, Task[]>();
+    for (const cat of categories) byId.set(cat.id, []);
+    const noCategory: Task[] = [];
+    for (const t of filtered) {
+      const bucket = t.categoryId ? byId.get(t.categoryId) : undefined;
+      if (bucket) bucket.push(t);
+      else noCategory.push(t);
+    }
+    const result = categories
+      .map((cat) => ({ id: cat.id, name: cat.name, color: cat.color, tasks: byId.get(cat.id)! }))
+      .filter((g) => g.tasks.length > 0);
+    if (noCategory.length > 0) {
+      result.push({ id: 'none', name: 'Sem categoria', color: 'var(--border-strong)', tasks: noCategory });
+    }
+    return result;
+  }, [filtered, categories]);
+
+  function toggleGroup(id: string) {
+    setCollapsed((c) => ({ ...c, [id]: !c[id] }));
+  }
+
+  function renderTaskRow(task: Task) {
+    return (
+      <div key={task.id} className="task-row" onClick={() => setTaskModal({ open: true, task })}>
+        {task.category && (
+          <div className="task-cat-bar" style={{ background: task.category.color }} />
+        )}
+        <div style={{ color: task.active ? 'var(--brand)' : 'var(--text-muted)', flexShrink: 0, display: 'flex' }}>
+          {task.active ? <CircleDot size={16} strokeWidth={1.8} /> : <CircleOff size={16} strokeWidth={1.8} />}
+        </div>
+        <div className="task-info">
+          <div className="task-name">{task.title}</div>
+          <div className="task-meta">
+            {recurrenceLabel(task)} · {task.startTime}
+            {task.endTime ? ` – ${task.endTime}` : ''}
+            {task.category && (
+              <span style={{ color: task.category.color, fontWeight: 600, marginLeft: 5 }}>
+                · {task.category.name}
+              </span>
+            )}
+          </div>
+        </div>
+        {!task.active && <span className="pill pill-sm pill-neutral">Inativo</span>}
+        {task.reminder
+          ? <Bell size={14} strokeWidth={1.8} color="var(--text-muted)" />
+          : <BellOff size={14} strokeWidth={1.8} color="var(--text-muted)" />
+        }
+      </div>
+    );
+  }
 
   return (
     <>
@@ -633,31 +704,21 @@ export function TasksScreen() {
           </div>
         )}
 
-        {filtered.map((task) => (
-          <div key={task.id} className="task-row" onClick={() => setTaskModal({ open: true, task })}>
-            {task.category && (
-              <div className="task-cat-bar" style={{ background: task.category.color }} />
-            )}
-            <div style={{ color: task.active ? 'var(--brand)' : 'var(--text-muted)', flexShrink: 0, display: 'flex' }}>
-              {task.active ? <CircleDot size={16} strokeWidth={1.8} /> : <CircleOff size={16} strokeWidth={1.8} />}
-            </div>
-            <div className="task-info">
-              <div className="task-name">{task.title}</div>
-              <div className="task-meta">
-                {task.weekdays.map((d) => DAYS[d]).join(' · ')} · {task.startTime}
-                {task.endTime ? ` – ${task.endTime}` : ''}
-                {task.category && (
-                  <span style={{ color: task.category.color, fontWeight: 600, marginLeft: 5 }}>
-                    · {task.category.name}
-                  </span>
-                )}
-              </div>
-            </div>
-            {!task.active && <span className="pill pill-sm pill-neutral">Inativo</span>}
-            {task.reminder
-              ? <Bell size={14} strokeWidth={1.8} color="var(--text-muted)" />
-              : <BellOff size={14} strokeWidth={1.8} color="var(--text-muted)" />
-            }
+        {!groups && filtered.map(renderTaskRow)}
+
+        {groups && groups.map((group) => (
+          <div key={group.id}>
+            <button className="section-toggle" onClick={() => toggleGroup(group.id)}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div className="cat-dot" style={{ background: group.color }} />
+                {group.name}
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                {group.tasks.length}
+                {collapsed[group.id] ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+              </span>
+            </button>
+            {!collapsed[group.id] && group.tasks.map(renderTaskRow)}
           </div>
         ))}
       </div>

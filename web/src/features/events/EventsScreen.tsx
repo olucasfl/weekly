@@ -63,7 +63,7 @@ type FormData = {
 };
 const EMPTY: FormData = { title: '', notes: '', date: todayISO(), endDate: '', startTime: '09:00', endTime: '', reminder: true, reminderMin: 60, important: false, countdownDays: 7 };
 
-function EventModal({ event, onClose }: { event: Event | null; onClose: () => void }) {
+export function EventModal({ event, initialDate, onClose, onSaved }: { event: Event | null; initialDate?: string; onClose: () => void; onSaved?: () => void }) {
   const qc = useQueryClient();
   const isEdit = !!event;
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -81,7 +81,7 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
           important: event.important ?? false,
           countdownDays: event.countdownDays ?? 7,
         }
-      : EMPTY,
+      : (initialDate ? { ...EMPTY, date: initialDate } : EMPTY),
   );
   const [error, setError] = useState('');
 
@@ -90,7 +90,7 @@ function EventModal({ event, onClose }: { event: Event | null; onClose: () => vo
   const upsert = useMutation({
     mutationFn: (d: Record<string, unknown>) =>
       isEdit ? api(`/tasks/${event.id}`, { method: 'PATCH', body: JSON.stringify(d) }) : api('/tasks', { method: 'POST', body: JSON.stringify(d) }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['events'] }); onClose(); },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['events'] }); onSaved?.(); onClose(); },
     onError: (e) => setError(e instanceof Error ? e.message : 'Erro'),
   });
 
