@@ -1,5 +1,7 @@
 import { prisma } from '../../lib/prisma.js';
 
+export type TaskStepInput = { id?: string; title: string };
+
 export type TaskRecord = {
   id: string;
   userId: string;
@@ -23,6 +25,7 @@ export type TaskRecord = {
   important?: boolean;
   countdownDays?: number | null;
   yearlyMonth?: number | null;
+  pausedUntil?: string | null;
 };
 
 export async function listTasks(userId: string, type?: 'RECURRING' | 'SCHEDULED', includeDeleted = false) {
@@ -33,11 +36,14 @@ export async function listTasks(userId: string, type?: 'RECURRING' | 'SCHEDULED'
       ...(!includeDeleted ? { deletedAt: null } : {}),
     },
     orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-    include: { category: { select: { id: true, name: true, color: true } } },
+    include: {
+      category: { select: { id: true, name: true, color: true } },
+      steps: { orderBy: { order: 'asc' }, select: { id: true, title: true } },
+    },
   });
 }
 
-export async function createTask(userId: string, input: Omit<TaskRecord, 'id' | 'userId'>) {
+export async function createTask(userId: string, input: Omit<TaskRecord, 'id' | 'userId'> & { steps?: TaskStepInput[] }) {
   return prisma.task.create({
     data: {
       userId,
@@ -61,13 +67,39 @@ export async function createTask(userId: string, input: Omit<TaskRecord, 'id' | 
       important: input.important ?? false,
       countdownDays: input.countdownDays ?? null,
       yearlyMonth: input.yearlyMonth ?? null,
+      pausedUntil: input.pausedUntil ?? null,
+      ...(input.steps && input.steps.length > 0
+        ? { steps: { create: input.steps.map((s, i) => ({ userId, title: s.title, order: i })) } }
+        : {}),
     },
   });
 }
 
-export async function updateTask(userId: string, id: string, input: Partial<TaskRecord>) {
+export async function updateTask(userId: string, id: string, input: Partial<TaskRecord> & { steps?: TaskStepInput[] }) {
   const existing = await prisma.task.findFirst({ where: { id, userId } });
   if (!existing) throw new Error('Tarefa não encontrada');
+
+  // Passos preservam identidade: quem já tem id é update (mantém o histórico de
+  // StepCompletion), quem não tem é create, e quem sumiu da lista é deleteMany —
+  // evita apagar/recriar tudo só porque uma etapa foi renomeada.
+  const stepsWrite = input.steps !== undefined
+    ? {
+        steps: {
+          deleteMany: (() => {
+            const keepIds = input.steps!.filter((s) => s.id).map((s) => s.id!);
+            return keepIds.length > 0 ? { id: { notIn: keepIds } } : {};
+          })(),
+          update: input.steps!
+            .map((s, i) => ({ s, i }))
+            .filter(({ s }) => s.id)
+            .map(({ s, i }) => ({ where: { id: s.id! }, data: { title: s.title, order: i } })),
+          create: input.steps!
+            .map((s, i) => ({ s, i }))
+            .filter(({ s }) => !s.id)
+            .map(({ s, i }) => ({ userId, title: s.title, order: i })),
+        },
+      }
+    : {};
 
   return prisma.task.update({
     where: { id },
@@ -92,6 +124,8 @@ export async function updateTask(userId: string, id: string, input: Partial<Task
       important:      input.important,
       countdownDays:  input.countdownDays  !== undefined ? (input.countdownDays  ?? null) : undefined,
       yearlyMonth:    input.yearlyMonth    !== undefined ? (input.yearlyMonth    ?? null) : undefined,
+      pausedUntil:    input.pausedUntil    !== undefined ? (input.pausedUntil    ?? null) : undefined,
+      ...stepsWrite,
     },
   });
 }
@@ -122,6 +156,14 @@ export async function addExtraOccurrence(userId: string, taskId: string, date: s
   `;
 
   return { success: true };
+}
+
+export async function getStepsForTaskIds(taskIds: string[]) {
+  if (taskIds.length === 0) return [];
+  return prisma.taskStep.findMany({
+    where: { taskId: { in: taskIds } },
+    orderBy: { order: 'asc' },
+  });
 }
 
 export async function getExtraOccurrencesForUser(userId: string, from: string, to: string) {

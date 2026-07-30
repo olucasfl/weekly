@@ -1,6 +1,7 @@
 import { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { addExtraOccurrence, createTask, deleteTask, listTasks, updateTask } from './tasks.service.js';
+import { toggleStepCompletion } from '../completions/completions.service.js';
 
 const taskInputSchema = z.object({
   title: z.string().min(1),
@@ -23,6 +24,13 @@ const taskInputSchema = z.object({
   yearlyMonth: z.number().int().min(1).max(12).nullable().optional(),
   important: z.boolean().default(false),
   countdownDays: z.number().int().nullable().optional(),
+  pausedUntil: z.string().nullable().optional(),
+  steps: z.array(z.object({ id: z.string().optional(), title: z.string().min(1) })).optional(),
+});
+
+const stepCompletionInputSchema = z.object({
+  date: z.string().min(1),
+  done: z.boolean(),
 });
 
 export const tasksRoutes: FastifyPluginAsync = async (app) => {
@@ -95,6 +103,23 @@ export const tasksRoutes: FastifyPluginAsync = async (app) => {
       return reply.send(result);
     } catch (error) {
       return reply.code(400).send({ statusCode: 400, message: error instanceof Error ? error.message : 'Erro ao adicionar ocorrência' });
+    }
+  });
+
+  // Marca/desmarca uma etapa do checklist pra uma data específica. Quando isso completa
+  // (ou desfaz) todas as etapas da task naquele dia, a ocorrência inteira é marcada/desmarcada
+  // automaticamente via markCompletion — reaproveitando o mesmo caminho que já sincroniza
+  // progresso de meta por categoria.
+  app.put('/:taskId/steps/:stepId/completion', async (request, reply) => {
+    const userId = request.user?.sub;
+    if (!userId) return reply.code(401).send({ statusCode: 401, message: 'Não autenticado' });
+    try {
+      const { taskId, stepId } = request.params as { taskId: string; stepId: string };
+      const { date, done } = stepCompletionInputSchema.parse(request.body);
+      const result = await toggleStepCompletion(userId, taskId, stepId, date, done);
+      return reply.send(result);
+    } catch (error) {
+      return reply.code(400).send({ statusCode: 400, message: error instanceof Error ? error.message : 'Erro ao marcar etapa' });
     }
   });
 };

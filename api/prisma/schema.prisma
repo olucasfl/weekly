@@ -31,6 +31,8 @@ model User {
   notes             Note[]
   extraOccurrences  ExtraOccurrence[]
   studySessions     StudySession[]
+  taskSteps         TaskStep[]
+  stepCompletions   StepCompletion[]
 }
 
 model Category {
@@ -59,6 +61,7 @@ model Task {
   reminderMin     Int          @default(60)
   active          Boolean      @default(true)
   deletedAt       String?
+  pausedUntil     String?
   notes           String?      @default("")
   categoryId      String?
   category        Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
@@ -73,6 +76,7 @@ model Task {
   yearlyMonth     Int?
   completions      Completion[]
   extraOccurrences ExtraOccurrence[]
+  steps            TaskStep[]
 
   @@index([userId, type])
 }
@@ -87,6 +91,33 @@ model ExtraOccurrence {
 
   @@unique([userId, taskId, date])
   @@index([userId])
+}
+
+model TaskStep {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId      String
+  task        Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title       String
+  order       Int
+  completions StepCompletion[]
+
+  @@index([userId])
+  @@index([taskId])
+}
+
+model StepCompletion {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskStepId String
+  taskStep   TaskStep @relation(fields: [taskStepId], references: [id], onDelete: Cascade)
+  date       String
+  done       Boolean  @default(false)
+
+  @@unique([userId, taskStepId, date])
+  @@index([userId, date])
 }
 
 model Completion {

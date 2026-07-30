@@ -1,5 +1,6 @@
 import { buildWeekOccurrences, type TaskLike, type OccurrenceItem } from '../../../../shared/src/recurrence.js';
-import { getCompletionsForRange } from '../completions/completions.service.js';
+import { getCompletionsForRange, getStepCompletionsForRange } from '../completions/completions.service.js';
+import { getStepsForTaskIds } from '../tasks/tasks.service.js';
 
 function offsetDate(dateStr: string, days: number): string {
   const d = new Date(dateStr + 'T12:00:00Z');
@@ -9,10 +10,23 @@ function offsetDate(dateStr: string, days: number): string {
 
 export async function getWeekOccurrences(userId: string, tasks: TaskLike[], weekStart: string) {
   const weekEnd = offsetDate(weekStart, 6);
-  const completions = await getCompletionsForRange(userId, weekStart, weekEnd);
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const [completions, stepDefs, stepCompletions] = await Promise.all([
+    getCompletionsForRange(userId, weekStart, weekEnd),
+    getStepsForTaskIds(tasks.map((t) => t.id)),
+    getStepCompletionsForRange(userId, weekStart, weekEnd),
+  ]);
   const completionMap = new Map(completions.map((c) => [`${c.taskId}:${c.date}`, c]));
 
-  const regular = buildWeekOccurrences(tasks, weekStart);
+  const stepsByTask = new Map<string, { id: string; title: string }[]>();
+  for (const s of stepDefs) {
+    const list = stepsByTask.get(s.taskId) ?? [];
+    list.push({ id: s.id, title: s.title });
+    stepsByTask.set(s.taskId, list);
+  }
+  const stepDoneMap = new Map(stepCompletions.map((sc) => [`${sc.taskStepId}:${sc.date}`, sc.done]));
+
+  const regular = buildWeekOccurrences(tasks, weekStart, todayISO);
 
   // Extra occurrences handled here so tsx watch picks it up (shared/ may not be watched)
   const extraItems: OccurrenceItem[] = [];
@@ -21,6 +35,7 @@ export async function getWeekOccurrences(userId: string, tasks: TaskLike[], week
     for (const extraDay of task.extraDays ?? []) {
       if (extraDay < weekStart || extraDay > weekEnd) continue;
       if (task.deletedAt && extraDay > task.deletedAt) continue;
+      if (task.pausedUntil && extraDay >= todayISO && extraDay <= task.pausedUntil) continue;
       if (!regular.some((o) => o.task.id === task.id && o.date === extraDay)) {
         extraItems.push({ task, date: extraDay });
       }
@@ -37,6 +52,7 @@ export async function getWeekOccurrences(userId: string, tasks: TaskLike[], week
     })
     .map((item) => {
       const c = completionMap.get(`${item.task.id}:${item.date}`);
+      const taskSteps = stepsByTask.get(item.task.id);
       return {
         taskId: item.task.id,
         title: item.task.title,
@@ -52,6 +68,9 @@ export async function getWeekOccurrences(userId: string, tasks: TaskLike[], week
         multiDayPos: item.multiDayPos ?? null,
         endDate: item.task.endDate ?? null,
         notes: item.task.notes ?? null,
+        steps: taskSteps && taskSteps.length > 0
+          ? taskSteps.map((s) => ({ id: s.id, title: s.title, done: stepDoneMap.get(`${s.id}:${item.date}`) ?? false }))
+          : undefined,
       };
     });
 }

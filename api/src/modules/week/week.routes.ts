@@ -58,6 +58,7 @@ export const weekRoutes: FastifyPluginAsync = async (app) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         yearlyMonth: (task as any).yearlyMonth ?? undefined,
         deletedAt: task.deletedAt ?? undefined,
+        pausedUntil: task.pausedUntil ?? undefined,
         notes: task.notes ?? undefined,
         extraDays: extraByTaskId.get(task.id) ?? [],
       })),

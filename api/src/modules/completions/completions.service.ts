@@ -33,6 +33,24 @@ async function syncGoalProgress(userId: string, taskId: string, date: string, de
 }
 
 export async function markCompletion(userId: string, taskId: string, date: string, done: boolean) {
+  // Task com checklist só pode ser marcada como feita quando todas as etapas daquele dia
+  // já estiverem concluídas — protege tanto o fluxo de step (toggleStepCompletion) quanto
+  // quem chamar PUT /completions direto tentando pular o checklist.
+  if (done) {
+    const steps = await prisma.taskStep.findMany({ where: { taskId }, select: { id: true } });
+    if (steps.length > 0) {
+      const stepCompletions = await prisma.stepCompletion.findMany({
+        where: { userId, date, taskStepId: { in: steps.map((s) => s.id) } },
+        select: { taskStepId: true, done: true },
+      });
+      const doneIds = new Set(stepCompletions.filter((c) => c.done).map((c) => c.taskStepId));
+      const allStepsDone = steps.every((s) => doneIds.has(s.id));
+      if (!allStepsDone) {
+        throw new Error('Conclua todas as etapas primeiro');
+      }
+    }
+  }
+
   const existing = await prisma.completion.findUnique({
     where: { userId_taskId_date: { userId, taskId, date } },
   });
@@ -50,6 +68,15 @@ export async function markCompletion(userId: string, taskId: string, date: strin
     await syncGoalProgress(userId, taskId, date, done ? 1 : -1);
   }
 
+  // Desfazer o "feito" também desfaz as etapas — senão o badge de progresso do checklist
+  // fica inconsistente com o estado "não feito" do pai. No-op quando a task não tem etapas.
+  if (!done) {
+    await prisma.stepCompletion.updateMany({
+      where: { userId, date, taskStep: { taskId } },
+      data: { done: false },
+    });
+  }
+
   return completion;
 }
 
@@ -65,4 +92,39 @@ export async function getCompletionsForRange(userId: string, from: string, to: s
   return prisma.completion.findMany({
     where: { userId, date: { gte: from, lte: to } },
   });
+}
+
+export async function getStepCompletionsForRange(userId: string, from: string, to: string) {
+  return prisma.stepCompletion.findMany({
+    where: { userId, date: { gte: from, lte: to } },
+  });
+}
+
+export async function toggleStepCompletion(userId: string, taskId: string, stepId: string, date: string, done: boolean) {
+  const step = await prisma.taskStep.findFirst({ where: { id: stepId, taskId, userId } });
+  if (!step) throw new Error('Etapa não encontrada');
+
+  await prisma.stepCompletion.upsert({
+    where: { userId_taskStepId_date: { userId, taskStepId: stepId, date } },
+    create: { userId, taskStepId: stepId, date, done },
+    update: { done },
+  });
+
+  const allSteps = await prisma.taskStep.findMany({ where: { taskId }, select: { id: true } });
+  const stepCompletions = await prisma.stepCompletion.findMany({
+    where: { userId, date, taskStepId: { in: allSteps.map((s) => s.id) } },
+    select: { taskStepId: true, done: true },
+  });
+  const doneIds = new Set(stepCompletions.filter((c) => c.done).map((c) => c.taskStepId));
+  const allDone = allSteps.length > 0 && allSteps.every((s) => doneIds.has(s.id));
+
+  const existingCompletion = await prisma.completion.findUnique({
+    where: { userId_taskId_date: { userId, taskId, date } },
+  });
+  const wasDone = existingCompletion?.done ?? false;
+  if (allDone !== wasDone) {
+    await markCompletion(userId, taskId, date, allDone);
+  }
+
+  return { success: true, allDone };
 }
