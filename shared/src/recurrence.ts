@@ -19,6 +19,7 @@ export type TaskLike = {
   monthlyWeek?: number | null;
   yearlyMonth?: number | null;
   deletedAt?: string | null;
+  pausedUntil?: string | null;
   notes?: string | null;
   extraDays?: string[];
 };
@@ -42,7 +43,18 @@ function notDeleted(deletedDate: string | null, occurrenceDate: string): boolean
   return occurrenceDate <= deletedDate;
 }
 
-export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): OccurrenceItem[] {
+// Uma rotina pausada até uma data some da Semana entre hoje e essa data, mas nunca esconde
+// ocorrências já passadas (histórico continua intacto, igual o soft-delete via deletedAt).
+function notPaused(pausedUntil: string | null, occurrenceDate: string, today: string): boolean {
+  if (!pausedUntil) return true;
+  return occurrenceDate < today || occurrenceDate > pausedUntil;
+}
+
+export function buildWeekOccurrences(
+  tasks: TaskLike[],
+  weekStart: string,
+  today: string = new Date().toISOString().slice(0, 10),
+): OccurrenceItem[] {
   const start = new Date(weekStart + 'T00:00:00');
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
@@ -51,6 +63,7 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
 
   for (const task of tasks.filter((t) => t.active !== false)) {
     const deletedDate = task.deletedAt ?? null;
+    const pausedDate = task.pausedUntil ?? null;
     if (task.type === 'SCHEDULED' && task.date) {
       if (task.endDate) {
         // Multi-day event: one occurrence per day in the span that falls within the week
@@ -88,6 +101,7 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
         current.setDate(start.getDate() + dayOffset);
         const dateStr = current.toISOString().slice(0, 10);
         if (current >= start && current <= end && notDeleted(deletedDate, dateStr)
+          && notPaused(pausedDate, dateStr, today)
           && (!taskStartDate || dateStr >= taskStartDate)) {
           occurrences.push({ task, date: dateStr });
         }
@@ -105,6 +119,7 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
           current.setDate(start.getDate() + dayOffset);
           const dateStr = current.toISOString().slice(0, 10);
           if (current >= start && current <= end && notDeleted(deletedDate, dateStr)
+            && notPaused(pausedDate, dateStr, today)
             && (!taskStartDate || dateStr >= taskStartDate)) {
             occurrences.push({ task, date: dateStr });
           }
@@ -116,6 +131,7 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
         d.setDate(start.getDate() + i);
         const dateStr = d.toISOString().slice(0, 10);
         if (d.getDate() === task.monthlyDay && notDeleted(deletedDate, dateStr)
+          && notPaused(pausedDate, dateStr, today)
           && (!taskStartDate || dateStr >= taskStartDate)) {
           occurrences.push({ task, date: dateStr });
           break;
@@ -128,6 +144,7 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
         const dateStr = d.toISOString().slice(0, 10);
         if (d.getMonth() + 1 === task.yearlyMonth && d.getDate() === task.monthlyDay
           && notDeleted(deletedDate, dateStr)
+          && notPaused(pausedDate, dateStr, today)
           && (!taskStartDate || dateStr >= taskStartDate)) {
           occurrences.push({ task, date: dateStr });
           break;
@@ -148,6 +165,7 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
           }
           const dateStr = d.toISOString().slice(0, 10);
           if (matches && notDeleted(deletedDate, dateStr)
+            && notPaused(pausedDate, dateStr, today)
             && (!taskStartDate || dateStr >= taskStartDate)) occurrences.push({ task, date: dateStr });
           break;
         }
@@ -158,9 +176,10 @@ export function buildWeekOccurrences(tasks: TaskLike[], weekStart: string): Occu
   // Extra occurrences manually added to specific days
   for (const task of tasks.filter((t) => t.active !== false)) {
     const deletedDate = task.deletedAt ?? null;
+    const pausedDate = task.pausedUntil ?? null;
     for (const extraDay of task.extraDays ?? []) {
       const d = new Date(extraDay + 'T00:00:00');
-      if (d >= start && d <= end && notDeleted(deletedDate, extraDay)) {
+      if (d >= start && d <= end && notDeleted(deletedDate, extraDay) && notPaused(pausedDate, extraDay, today)) {
         if (!occurrences.some((o) => o.task.id === task.id && o.date === extraDay)) {
           occurrences.push({ task, date: extraDay });
         }
