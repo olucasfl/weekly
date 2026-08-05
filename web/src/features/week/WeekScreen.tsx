@@ -145,6 +145,9 @@ export function WeekScreen() {
       // Concluir uma rotina pode ter avançado uma meta vinculada por categoria (ver
       // completions.service.ts) — refetch pro card de metas refletir na hora.
       qc.invalidateQueries({ queryKey: ['goals', weekStartISO] });
+      // Refetch da tela de Progresso, senão ela fica mostrando o percentual antigo
+      // até o staleTime global (30s) expirar sozinho.
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 
@@ -179,6 +182,7 @@ export function WeekScreen() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['week', weekStartISO] });
       qc.invalidateQueries({ queryKey: ['goals', weekStartISO] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 
@@ -204,6 +208,7 @@ export function WeekScreen() {
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['week', weekStartISO] });
       qc.invalidateQueries({ queryKey: ['goals', weekStartISO] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 
@@ -222,7 +227,19 @@ export function WeekScreen() {
       if (ctx?.prev) qc.setQueryData(['week', weekStartISO], ctx.prev);
       showError('Erro ao remover. Tente novamente.');
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['week', weekStartISO] }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['week', weekStartISO] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+
+  const deleteRoutineMutation = useMutation({
+    mutationFn: (taskId: string) => api(`/tasks/${taskId}`, { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['week', weekStartISO] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+    onError: () => showError('Erro ao apagar. Tente novamente.'),
   });
 
   const addExistingMutation = useMutation({
@@ -431,10 +448,19 @@ export function WeekScreen() {
               return (
                 <div key={`${item.taskId}-${item.date}`}>
                   {isConfirming ? (
-                    <div className="task-row" style={{ gap: 8 }}>
-                      <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flex: 1 }}>Remover deste dia?</span>
+                    <div className="task-row" style={{ gap: 8, flexWrap: 'wrap', rowGap: 6 }}>
+                      <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flex: '1 1 160px' }}>
+                        {item.type === 'RECURRING' ? 'Remover só esse dia ou a rotina toda?' : 'Remover deste dia?'}
+                      </span>
                       <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setConfirmSkip(null)}>Não</button>
-                      <button className="btn btn-danger" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => { skipMutation.mutate({ taskId: item.taskId, date: item.date }); setConfirmSkip(null); }}>Sim</button>
+                      {item.type === 'RECURRING' ? (
+                        <>
+                          <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => { skipMutation.mutate({ taskId: item.taskId, date: item.date }); setConfirmSkip(null); }}>Só hoje</button>
+                          <button className="btn btn-danger" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => { deleteRoutineMutation.mutate(item.taskId); setConfirmSkip(null); }}>Rotina toda</button>
+                        </>
+                      ) : (
+                        <button className="btn btn-danger" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => { skipMutation.mutate({ taskId: item.taskId, date: item.date }); setConfirmSkip(null); }}>Sim</button>
+                      )}
                     </div>
                   ) : (
                     <div
@@ -477,10 +503,19 @@ export function WeekScreen() {
             return (
               <div key={`${item.taskId}-${item.date}`}>
                 {isConfirming ? (
-                  <div className="task-row" style={{ gap: 8 }}>
-                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flex: 1 }}>Remover deste dia?</span>
+                  <div className="task-row" style={{ gap: 8, flexWrap: 'wrap', rowGap: 6 }}>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flex: '1 1 160px' }}>
+                      {item.type === 'RECURRING' ? 'Remover só esse dia ou a rotina toda?' : 'Remover deste dia?'}
+                    </span>
                     <button className="btn btn-ghost" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => setConfirmSkip(null)}>Não</button>
-                    <button className="btn btn-danger" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => { skipMutation.mutate({ taskId: item.taskId, date: item.date }); setConfirmSkip(null); }}>Sim</button>
+                    {item.type === 'RECURRING' ? (
+                      <>
+                        <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => { skipMutation.mutate({ taskId: item.taskId, date: item.date }); setConfirmSkip(null); }}>Só hoje</button>
+                        <button className="btn btn-danger" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => { deleteRoutineMutation.mutate(item.taskId); setConfirmSkip(null); }}>Rotina toda</button>
+                      </>
+                    ) : (
+                      <button className="btn btn-danger" style={{ padding: '4px 10px', fontSize: '0.8rem' }} onClick={() => { skipMutation.mutate({ taskId: item.taskId, date: item.date }); setConfirmSkip(null); }}>Sim</button>
+                    )}
                   </div>
                 ) : (
                   <>

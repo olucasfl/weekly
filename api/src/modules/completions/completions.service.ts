@@ -32,7 +32,14 @@ async function syncGoalProgress(userId: string, taskId: string, date: string, de
   }
 }
 
-export async function markCompletion(userId: string, taskId: string, date: string, done: boolean) {
+export async function markCompletion(
+  userId: string,
+  taskId: string,
+  date: string,
+  done: boolean,
+  options: { resetSteps?: boolean } = {},
+) {
+  const { resetSteps = true } = options;
   // Task com checklist só pode ser marcada como feita quando todas as etapas daquele dia
   // já estiverem concluídas — protege tanto o fluxo de step (toggleStepCompletion) quanto
   // quem chamar PUT /completions direto tentando pular o checklist.
@@ -70,7 +77,10 @@ export async function markCompletion(userId: string, taskId: string, date: strin
 
   // Desfazer o "feito" também desfaz as etapas — senão o badge de progresso do checklist
   // fica inconsistente com o estado "não feito" do pai. No-op quando a task não tem etapas.
-  if (!done) {
+  // resetSteps=false quando quem chamou foi toggleStepCompletion: ali o pai só está virando
+  // "não feito" como efeito colateral de UMA etapa ter sido desmarcada, então as outras etapas
+  // não podem ser resetadas junto (senão desmarcar 1 de N etapas desmarcava todas as N).
+  if (!done && resetSteps) {
     await prisma.stepCompletion.updateMany({
       where: { userId, date, taskStep: { taskId } },
       data: { done: false },
@@ -123,7 +133,7 @@ export async function toggleStepCompletion(userId: string, taskId: string, stepI
   });
   const wasDone = existingCompletion?.done ?? false;
   if (allDone !== wasDone) {
-    await markCompletion(userId, taskId, date, allDone);
+    await markCompletion(userId, taskId, date, allDone, { resetSteps: false });
   }
 
   return { success: true, allDone };
